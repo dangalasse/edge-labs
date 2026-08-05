@@ -10,7 +10,7 @@ Cloudflare Worker for **LLMOps** on the **Cloudflare Free Tier**.
 | Surface | URL |
 |---------|-----|
 | Health | https://edge.galasse.dev/health |
-| **Try-it (recruiters)** | https://edge.galasse.dev/ |
+| **Try-it (recruiters)** | https://edge.galasse.dev/ (toggle PT-BR / ENG-US) |
 | Analyze API | `POST https://edge.galasse.dev/analyze-error` |
 | workers.dev | https://edge-labs.dantonguerragalasse.workers.dev/health |
 | Source | https://github.com/dangalasse/edge-labs |
@@ -20,7 +20,10 @@ Cloudflare Worker for **LLMOps** on the **Cloudflare Free Tier**.
 ```bash
 curl -sS -X POST https://edge.galasse.dev/analyze-error \
   -H 'content-type: application/json' \
-  -d '{"message":"ECONNREFUSED 127.0.0.1:5432","context":"NestJS boot"}'
+  -d '{"message":"ECONNREFUSED 127.0.0.1:5432","context":"NestJS boot","locale":"pt-BR"}'
+```
+
+The playground mirrors the portfolio locale toggle (PT-BR / ENG-US). UI copy and LLM fields (`summary`, `likelyCause`, `suggestedFix`) follow `locale`; proof metadata (`provider`, `model`, `analyzedAt`) stays machine-readable, with raw JSON available under the result.
 ```
 
 ## Which LLM is running?
