@@ -1,0 +1,12 @@
+# WHY: Worker on Cloudflare Free Tier. Workers AI binding = live LLMOps without Google key.
+# Optional Gemini: npx wrangler secret put GEMINI_API_KEY
+name = "edge-labs"
+main = "src/index.ts"
+compatibility_date = "2025-05-05"
+workers_dev = true
+
+[ai]
+binding = "AI"
+
+[vars]
+GEMINI_MODEL = "gemini-2.0-flash"
