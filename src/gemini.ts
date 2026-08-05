@@ -30,8 +30,8 @@ async function analyzeWithWorkersAi(
   payload: ErrorLogPayload,
   ai: Ai,
 ): Promise<AnalysisResult> {
-  // WHY: llama on Workers AI is included in Cloudflare Free Tier quotas for portfolio demos.
-  const model = "@cf/meta/llama-3.1-8b-instruct";
+  // WHY: base llama-3.1-8b-instruct was deprecated on Workers AI (2026-05-30); fp8 remains Free Tier.
+  const model = "@cf/meta/llama-3.1-8b-instruct-fp8";
   const prompt = buildPrompt(payload);
 
   const result = await ai.run(model, {

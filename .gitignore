@@ -9,3 +9,5 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+dist/
+.cf_upload_code.js

@@ -2,23 +2,24 @@
 
 Cloudflare Worker for **LLMOps** on the **Cloudflare Free Tier**.
 
-- **Primary:** Workers AI (`@cf/meta/llama-3.1-8b-instruct`) via `[ai]` binding — always live, no Google key.
+- **Primary:** Workers AI (`@cf/meta/llama-3.1-8b-instruct-fp8`) via `[ai]` binding — always live, no Google key.
 - **Optional:** Google Gemini (AI Studio Free Tier) when `GEMINI_API_KEY` is set via `wrangler secret`.
 
 ## Live
 
 | Surface | URL |
 |---------|-----|
-| Health | `https://edge-labs.<subdomain>.workers.dev/health` |
-| Analyze | `POST https://edge-labs.<subdomain>.workers.dev/analyze-error` |
-| Custom (DNS) | `https://edge.galasse.dev` (when CNAME is wired) |
+| Health | https://edge.galasse.dev/health |
+| Analyze | `POST https://edge.galasse.dev/analyze-error` |
+| workers.dev | https://edge-labs.dantonguerragalasse.workers.dev/health |
+| Source | https://github.com/dangalasse/edge-labs |
 
 ### Example
 
 ```bash
-curl -sS -X POST "$EDGE_LABS_URL/analyze-error" \
+curl -sS -X POST https://edge.galasse.dev/analyze-error \
   -H 'content-type: application/json' \
-  -d '{"message":"ECONNREFUSED 127.0.0.1:5432","context":"NestJS boot on k8s"}'
+  -d '{"message":"ECONNREFUSED 127.0.0.1:5432","context":"NestJS boot"}'
 ```
 
 ## Why this stack
@@ -38,6 +39,8 @@ npx wrangler deploy
 # optional:
 npx wrangler secret put GEMINI_API_KEY
 ```
+
+Custom hostname `edge.galasse.dev` is attached via Cloudflare Workers Routes / Domains on zone `galasse.dev`.
 
 ## Security
 
