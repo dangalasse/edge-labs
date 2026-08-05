@@ -3,9 +3,9 @@ import type { AnalysisResult, ErrorLogPayload } from "./types";
 const DEFAULT_API_BASE = "https://generativelanguage.googleapis.com";
 
 /**
- * Prefer Cloudflare Workers AI (account Free Tier) so the demo is always live
- * without a Google key. Fall back to Gemini AI Studio when GEMINI_API_KEY is set.
- * WHY: Recruiters can hit /analyze-error on day one; Gemini remains optional for LLMOps breadth.
+ * Prefer Gemini when GEMINI_API_KEY is set (real Google AI Studio path).
+ * Otherwise Workers AI (Cloudflare Free Tier) so the demo stays live.
+ * WHY: recruiters always get a live answer; provider field proves which backend ran.
  */
 export async function analyzeErrorLog(
   payload: ErrorLogPayload,
@@ -54,7 +54,7 @@ async function analyzeWithWorkersAi(
       ? (result as { response: string }).response
       : JSON.stringify(result);
 
-  return parseAnalysis(text, model);
+  return parseAnalysis(text, model, "workers-ai");
 }
 
 export async function analyzeWithGemini(
@@ -90,7 +90,7 @@ export async function analyzeWithGemini(
     throw new Error("Gemini returned an empty candidate");
   }
 
-  return parseAnalysis(text, model);
+  return parseAnalysis(text, model, "gemini");
 }
 
 function buildPrompt(payload: ErrorLogPayload): string {
@@ -103,23 +103,30 @@ function buildPrompt(payload: ErrorLogPayload): string {
     .join("\n");
 }
 
-function parseAnalysis(text: string, model: string): AnalysisResult {
+function parseAnalysis(
+  text: string,
+  model: string,
+  provider: "workers-ai" | "gemini",
+): AnalysisResult {
   const cleaned = text
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
 
+  const analyzedAt = new Date().toISOString();
+
   let parsed: { summary?: string; likelyCause?: string; suggestedFix?: string };
   try {
     parsed = JSON.parse(cleaned) as typeof parsed;
   } catch {
-    // WHY: some models wrap JSON poorly — still return something useful for demos.
     return {
       summary: cleaned.slice(0, 280),
       likelyCause: "Model did not return strict JSON; see summary",
-      suggestedFix: "Re-run with GEMINI_API_KEY for stricter JSON mode",
+      suggestedFix: "Inspect raw model output and retry",
       model,
+      provider,
+      analyzedAt,
     };
   }
 
@@ -129,5 +136,7 @@ function parseAnalysis(text: string, model: string): AnalysisResult {
     suggestedFix:
       parsed.suggestedFix?.trim() || "Inspect logs and reproduce locally",
     model,
+    provider,
+    analyzedAt,
   };
 }

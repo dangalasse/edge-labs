@@ -10,8 +10,14 @@ export interface AnalysisResult {
   summary: string;
   likelyCause: string;
   suggestedFix: string;
+  /** Concrete model id (e.g. llama fp8 or gemini-2.0-flash) */
   model: string;
+  /** Which backend answered — recruiters can trust this over marketing copy */
+  provider: "workers-ai" | "gemini";
+  /** UTC timestamp of the inference */
+  analyzedAt: string;
 }
+
 
 export interface Env {
   /** Optional — `wrangler secret put GEMINI_API_KEY` */

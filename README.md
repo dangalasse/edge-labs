@@ -10,7 +10,8 @@ Cloudflare Worker for **LLMOps** on the **Cloudflare Free Tier**.
 | Surface | URL |
 |---------|-----|
 | Health | https://edge.galasse.dev/health |
-| Analyze | `POST https://edge.galasse.dev/analyze-error` |
+| **Try-it (recruiters)** | https://edge.galasse.dev/ |
+| Analyze API | `POST https://edge.galasse.dev/analyze-error` |
 | workers.dev | https://edge-labs.dantonguerragalasse.workers.dev/health |
 | Source | https://github.com/dangalasse/edge-labs |
 
@@ -22,7 +23,25 @@ curl -sS -X POST https://edge.galasse.dev/analyze-error \
   -d '{"message":"ECONNREFUSED 127.0.0.1:5432","context":"NestJS boot"}'
 ```
 
-## Why this stack
+## Which LLM is running?
+
+| Check | Meaning |
+|-------|---------|
+| `GET /health` → `"provider":"workers-ai"` | Cloudflare Workers AI (live Free Tier) |
+| `GET /health` → `"provider":"gemini"` | Google Gemini via `wrangler secret put GEMINI_API_KEY` |
+| Response field `analyzedAt` | UTC timestamp of that inference (not a cached mock) |
+| Response field `model` | Exact model id used |
+
+**Gemini is optional.** Without the secret, the demo stays live on Workers AI so recruiters never hit a dead endpoint. To switch to Gemini:
+
+```bash
+npx wrangler secret put GEMINI_API_KEY
+# paste your AI Studio key
+npx wrangler deploy
+```
+
+Then `/health` and the playground badge flip to `gemini`.
+
 
 | Choice | WHY |
 |--------|-----|
