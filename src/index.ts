@@ -1,4 +1,6 @@
 import { analyzeErrorLog } from "./gemini";
+import { normalizeLocale } from "./i18n";
+import { playgroundHtml } from "./playground";
 import type { Env, ErrorLogPayload } from "./types";
 
 /**
@@ -15,7 +17,10 @@ export default {
     }
 
     if (request.method === "GET" && (url.pathname === "/" || url.pathname === "")) {
-      return playgroundHtml(activeProvider(env));
+      const locale = normalizeLocale(
+        url.searchParams.get("lang") ?? url.searchParams.get("locale"),
+      );
+      return playgroundHtml(activeProvider(env), locale);
     }
 
     if (request.method === "GET" && url.pathname === "/health") {
@@ -73,7 +78,7 @@ async function handleAnalyze(request: Request, env: Env): Promise<Response> {
     return json(
       {
         error:
-          'Expected JSON: { "message": string, "stack"?: string, "context"?: string }',
+          'Expected JSON: { "message": string, "stack"?: string, "context"?: string, "locale"?: "pt-BR"|"en-US" }',
       },
       400,
     );
@@ -104,6 +109,7 @@ function normalizePayload(raw: unknown): ErrorLogPayload | null {
     message: obj.message.trim(),
     stack: typeof obj.stack === "string" ? obj.stack : undefined,
     context: typeof obj.context === "string" ? obj.context : undefined,
+    locale: normalizeLocale(obj.locale),
   };
 }
 
@@ -120,85 +126,6 @@ function json(data: unknown, status = 200): Response {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      ...corsHeaders(),
-    },
-  });
-}
-
-/** Minimal try-it page so recruiters see a live provider badge without curling. */
-function playgroundHtml(provider: string): Response {
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Edge Labs — live LLMOps</title>
-  <style>
-    :root { --ink:#0f1419; --panel:#162229; --paper:#e8eef1; --mist:#9db0bb; --signal:#3dd6c6; --line:#2a3a44; --warn:#f0b429; }
-    * { box-sizing: border-box; }
-    body { margin:0; min-height:100vh; font-family: ui-sans-serif, system-ui, sans-serif; background:var(--ink); color:var(--paper); padding:1.5rem; }
-    main { max-width:40rem; margin:0 auto; }
-    h1 { font-size:1.75rem; letter-spacing:-0.03em; margin:0 0 .5rem; }
-    .badge { display:inline-block; font-family:ui-monospace,monospace; font-size:.75rem; padding:.35rem .6rem; border:1px solid var(--line); background:var(--panel); color:var(--signal); }
-    .badge.warn { color:var(--warn); }
-    p { color:var(--mist); line-height:1.5; }
-    label { display:block; font-family:ui-monospace,monospace; font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; color:var(--mist); margin:1rem 0 .35rem; }
-    textarea, input { width:100%; background:var(--panel); border:1px solid var(--line); color:var(--paper); padding:.75rem; font:inherit; border-radius:0; }
-    button { margin-top:1rem; background:var(--signal); color:var(--ink); border:0; padding:.7rem 1.1rem; font-weight:700; cursor:pointer; }
-    button:disabled { opacity:.5; cursor:wait; }
-    pre { margin-top:1.25rem; background:var(--panel); border:1px solid var(--line); padding:1rem; overflow:auto; font-size:.8rem; white-space:pre-wrap; }
-    a { color:var(--signal); }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Edge Labs</h1>
-    <p>Live LLMOps on Cloudflare Free Tier. Paste an error log — the JSON response includes <code>provider</code>, <code>model</code>, and <code>analyzedAt</code> so you can verify this is a real inference, not a static mock.</p>
-    <p>Active backend: <span class="badge" id="providerBadge">${provider}</span>
-      ${provider === "workers-ai" ? '<span class="badge warn">Gemini secret not set — using Workers AI</span>' : ""}
-      ${provider === "gemini" ? '<span class="badge">Google Gemini (AI Studio)</span>' : ""}
-    </p>
-    <label for="message">Error message</label>
-    <textarea id="message" rows="3">ECONNREFUSED 127.0.0.1:5432</textarea>
-    <label for="context">Context (optional)</label>
-    <input id="context" value="NestJS boot — recruiter smoke test" />
-    <button id="run" type="button">Analyze live</button>
-    <pre id="out">Response will appear here…</pre>
-    <p><a href="/health">/health</a> · <a href="https://github.com/dangalasse/edge-labs">source</a> · <a href="https://portfolio.galasse.dev/Projects/edge-labs">portfolio</a></p>
-  </main>
-  <script>
-    const out = document.getElementById('out');
-    const btn = document.getElementById('run');
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      out.textContent = 'Calling POST /analyze-error…';
-      try {
-        const res = await fetch('/analyze-error', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            message: document.getElementById('message').value,
-            context: document.getElementById('context').value,
-          }),
-        });
-        const data = await res.json();
-        out.textContent = JSON.stringify(data, null, 2);
-        if (data.provider) {
-          document.getElementById('providerBadge').textContent = data.provider;
-        }
-      } catch (e) {
-        out.textContent = String(e);
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  </script>
-</body>
-</html>`;
-
-  return new Response(html, {
-    headers: {
-      "content-type": "text/html; charset=utf-8",
       ...corsHeaders(),
     },
   });

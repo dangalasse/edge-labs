@@ -1,8 +1,12 @@
+import type { Locale } from "./i18n";
+
 /** Request body for POST /analyze-error */
 export interface ErrorLogPayload {
   message: string;
   stack?: string;
   context?: string;
+  /** UI / answer language — mirrors portfolio `pt-BR` | `en-US` */
+  locale?: Locale;
 }
 
 /** Structured analysis returned to the caller */

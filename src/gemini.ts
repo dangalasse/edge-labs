@@ -1,3 +1,4 @@
+import { languageInstruction, normalizeLocale } from "./i18n";
 import type { AnalysisResult, ErrorLogPayload } from "./types";
 
 const DEFAULT_API_BASE = "https://generativelanguage.googleapis.com";
@@ -26,6 +27,15 @@ export async function analyzeErrorLog(
   );
 }
 
+function systemPrompt(payload: ErrorLogPayload): string {
+  const locale = normalizeLocale(payload.locale);
+  return [
+    "You are a senior SRE.",
+    "Reply with ONLY valid JSON keys: summary, likelyCause, suggestedFix (strings).",
+    languageInstruction(locale),
+  ].join(" ");
+}
+
 async function analyzeWithWorkersAi(
   payload: ErrorLogPayload,
   ai: Ai,
@@ -38,8 +48,7 @@ async function analyzeWithWorkersAi(
     messages: [
       {
         role: "system",
-        content:
-          "You are a senior SRE. Reply with ONLY valid JSON: summary, likelyCause, suggestedFix (strings).",
+        content: systemPrompt(payload),
       },
       { role: "user", content: prompt },
     ],
@@ -62,7 +71,7 @@ export async function analyzeWithGemini(
   apiKey: string,
   model: string,
 ): Promise<AnalysisResult> {
-  const prompt = buildPrompt(payload);
+  const prompt = `${systemPrompt(payload)}\n\n${buildPrompt(payload)}`;
   const url = `${DEFAULT_API_BASE}/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const response = await fetch(url, {
