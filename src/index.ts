@@ -1,7 +1,7 @@
-import { analyzeErrorLog } from "./gemini";
+import { analyzeErrorLog, coach, normalizeCoachMode } from "./gemini";
 import { normalizeLocale } from "./i18n";
 import { playgroundHtml } from "./playground";
-import type { Env, ErrorLogPayload } from "./types";
+import type { CoachPayload, Env, ErrorLogPayload } from "./types";
 
 /**
  * Edge Labs — LLMOps Worker on Cloudflare Free Tier.
@@ -33,12 +33,18 @@ export default {
         provider,
         geminiConfigured: Boolean(env.GEMINI_API_KEY),
         workersAiBound: Boolean(env.AI),
+        endpoints: ["/analyze-error", "/coach"],
+        coachModes: ["sre", "sdd", "ddd", "tdd"],
         tip: "Open https://edge.galasse.dev/ to run a live analysis and see provider + model in the response.",
       });
     }
 
     if (request.method === "POST" && url.pathname === "/analyze-error") {
       return handleAnalyze(request, env);
+    }
+
+    if (request.method === "POST" && url.pathname === "/coach") {
+      return handleCoach(request, env);
     }
 
     return json({ error: "Not found" }, 404);
@@ -55,15 +61,18 @@ function activeProvider(env: Env): "gemini" | "workers-ai" | "none" {
   return "none";
 }
 
+function llmEnv(env: Env) {
+  return {
+    AI: env.AI,
+    GEMINI_API_KEY: env.GEMINI_API_KEY,
+    GEMINI_MODEL: env.GEMINI_MODEL || "gemini-2.0-flash",
+  };
+}
+
 async function handleAnalyze(request: Request, env: Env): Promise<Response> {
-  if (!env.GEMINI_API_KEY && !env.AI) {
-    return json(
-      {
-        error:
-          "No LLM backend: enable Workers AI binding or wrangler secret put GEMINI_API_KEY",
-      },
-      503,
-    );
+  const backend = requireLlm(env);
+  if (backend) {
+    return backend;
   }
 
   let body: unknown;
@@ -73,7 +82,7 @@ async function handleAnalyze(request: Request, env: Env): Promise<Response> {
     return json({ error: "Body must be JSON" }, 400);
   }
 
-  const payload = normalizePayload(body);
+  const payload = normalizeErrorPayload(body);
   if (!payload) {
     return json(
       {
@@ -85,11 +94,7 @@ async function handleAnalyze(request: Request, env: Env): Promise<Response> {
   }
 
   try {
-    const result = await analyzeErrorLog(payload, {
-      AI: env.AI,
-      GEMINI_API_KEY: env.GEMINI_API_KEY,
-      GEMINI_MODEL: env.GEMINI_MODEL || "gemini-2.0-flash",
-    });
+    const result = await analyzeErrorLog(payload, llmEnv(env));
     return json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upstream failure";
@@ -97,7 +102,53 @@ async function handleAnalyze(request: Request, env: Env): Promise<Response> {
   }
 }
 
-function normalizePayload(raw: unknown): ErrorLogPayload | null {
+async function handleCoach(request: Request, env: Env): Promise<Response> {
+  const backend = requireLlm(env);
+  if (backend) {
+    return backend;
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Body must be JSON" }, 400);
+  }
+
+  const payload = normalizeCoachPayload(body);
+  if (!payload) {
+    return json(
+      {
+        error:
+          'Expected JSON: { "mode": "sre"|"sdd"|"ddd"|"tdd", "message": string, "context"?: string, "locale"?: "pt-BR"|"en-US" }',
+      },
+      400,
+    );
+  }
+
+  try {
+    const result = await coach(payload, llmEnv(env));
+    return json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Upstream failure";
+    return json({ error: message }, 502);
+  }
+}
+
+function requireLlm(env: Env): Response | null {
+  if (!env.GEMINI_API_KEY && !env.AI) {
+    return json(
+      {
+        error:
+          "No LLM backend: enable Workers AI binding or wrangler secret put GEMINI_API_KEY",
+      },
+      503,
+    );
+  }
+  return null;
+}
+
+function normalizeErrorPayload(raw: unknown): ErrorLogPayload | null {
   if (typeof raw !== "object" || raw === null) {
     return null;
   }
@@ -108,6 +159,23 @@ function normalizePayload(raw: unknown): ErrorLogPayload | null {
   return {
     message: obj.message.trim(),
     stack: typeof obj.stack === "string" ? obj.stack : undefined,
+    context: typeof obj.context === "string" ? obj.context : undefined,
+    locale: normalizeLocale(obj.locale),
+  };
+}
+
+function normalizeCoachPayload(raw: unknown): CoachPayload | null {
+  if (typeof raw !== "object" || raw === null) {
+    return null;
+  }
+  const obj = raw as Record<string, unknown>;
+  const mode = normalizeCoachMode(obj.mode);
+  if (!mode || typeof obj.message !== "string" || obj.message.trim().length === 0) {
+    return null;
+  }
+  return {
+    mode,
+    message: obj.message.trim(),
     context: typeof obj.context === "string" ? obj.context : undefined,
     locale: normalizeLocale(obj.locale),
   };

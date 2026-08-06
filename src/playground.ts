@@ -129,6 +129,28 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
       color: var(--signal);
     }
     .badge.warn { color: var(--warn); }
+    .mode-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0.75rem 0 0.25rem;
+    }
+    .mode-tab {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--mist);
+      padding: 0.45rem 0.75rem;
+      font: 600 0.78rem "IBM Plex Mono", ui-monospace, monospace;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+    .mode-tab:hover { color: var(--paper); border-color: color-mix(in srgb, var(--signal) 45%, var(--line)); }
+    .mode-tab[aria-selected="true"] {
+      background: color-mix(in srgb, var(--signal) 18%, var(--panel));
+      border-color: var(--signal);
+      color: var(--paper);
+    }
     label {
       display: block;
       font-family: "IBM Plex Mono", ui-monospace, monospace;
@@ -310,8 +332,15 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
       ${statusBadges(provider, t)}
     </p>
 
+    <div class="mode-tabs" role="tablist" aria-label="Coach modes">
+      <button type="button" class="mode-tab" role="tab" id="tab-erro" data-tab="erro" aria-selected="true" data-i18n="tabErro">${escapeHtml(t.tabErro)}</button>
+      <button type="button" class="mode-tab" role="tab" id="tab-sdd" data-tab="sdd" aria-selected="false" data-i18n="tabSdd">${escapeHtml(t.tabSdd)}</button>
+      <button type="button" class="mode-tab" role="tab" id="tab-ddd" data-tab="ddd" aria-selected="false" data-i18n="tabDdd">${escapeHtml(t.tabDdd)}</button>
+      <button type="button" class="mode-tab" role="tab" id="tab-tdd" data-tab="tdd" aria-selected="false" data-i18n="tabTdd">${escapeHtml(t.tabTdd)}</button>
+    </div>
+
     <form id="analyzeForm" novalidate>
-      <label for="message" data-i18n="errorLabel">${escapeHtml(t.errorLabel)}</label>
+      <label for="message" id="messageLabel" data-i18n="errorLabel">${escapeHtml(t.errorLabel)}</label>
       <textarea id="message" name="message" rows="3" required>${escapeHtml(t.defaultMessage)}</textarea>
 
       <label for="context" data-i18n="contextLabel">${escapeHtml(t.contextLabel)}</label>
@@ -339,9 +368,13 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
   <script>
     (() => {
       const STORAGE_KEY = "edge-labs-locale";
+      const TAB_KEY = "edge-labs-tab";
       const boot = JSON.parse(document.getElementById("i18n-boot").textContent);
       let locale = document.documentElement.lang || "pt-BR";
       let copy = boot;
+      let activeTab = "erro";
+
+      const TAB_MODES = { erro: null, sdd: "sdd", ddd: "ddd", tdd: "tdd" };
 
       const COPY = {
         "pt-BR": null,
@@ -358,6 +391,31 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
       const PT = ${JSON.stringify(copyFor("pt-BR")).replaceAll("</", "<\\/")};
       COPY["en-US"] = EN;
       COPY["pt-BR"] = PT;
+
+      function defaultsForTab(tab) {
+        if (tab === "sdd") return { message: copy.defaultSddMessage, context: copy.defaultSddContext };
+        if (tab === "ddd") return { message: copy.defaultDddMessage, context: copy.defaultDddContext };
+        if (tab === "tdd") return { message: copy.defaultTddMessage, context: copy.defaultTddContext };
+        return { message: copy.defaultMessage, context: copy.defaultContext };
+      }
+
+      function applyTabUi(tab) {
+        activeTab = tab;
+        document.querySelectorAll(".mode-tab").forEach((btn) => {
+          const selected = btn.dataset.tab === tab;
+          btn.setAttribute("aria-selected", selected ? "true" : "false");
+        });
+        const label = document.getElementById("messageLabel");
+        const runBtn = document.getElementById("run");
+        if (label) label.textContent = tab === "erro" ? copy.errorLabel : copy.messageLabel;
+        if (runBtn) runBtn.textContent = tab === "erro" ? copy.analyze : copy.coach;
+        const msg = document.getElementById("message");
+        const ctx = document.getElementById("context");
+        const defs = defaultsForTab(tab);
+        if (msg && !msg.dataset.dirty) msg.value = defs.message;
+        if (ctx && !ctx.dataset.dirty) ctx.value = defs.context;
+        try { localStorage.setItem(TAB_KEY, tab); } catch (_) {}
+      }
 
       function applyCopy(next) {
         locale = next === "en-US" ? "en-US" : "pt-BR";
@@ -390,8 +448,11 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
 
         const msg = document.getElementById("message");
         const ctx = document.getElementById("context");
-        if (msg && !msg.dataset.dirty) msg.value = copy.defaultMessage;
-        if (ctx && !ctx.dataset.dirty) ctx.value = copy.defaultContext;
+        const defs = defaultsForTab(activeTab);
+        if (msg && !msg.dataset.dirty) msg.value = defs.message;
+        if (ctx && !ctx.dataset.dirty) ctx.value = defs.context;
+
+        applyTabUi(activeTab);
 
         const region = document.getElementById("resultRegion");
         if (region.dataset.hasResult !== "1") {
@@ -438,14 +499,29 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
         }
 
         const raw = JSON.stringify(data, null, 2);
+        const isCoach = Array.isArray(data.invariants);
+        const title = isCoach ? copy.coachResultTitle : copy.resultTitle;
+
+        let fields = "";
+        if (isCoach) {
+          const inv = (data.invariants || []).map((i) => "<li>" + escapeHtml(i) + "</li>").join("");
+          fields =
+            '<div class="field"><dt>' + escapeHtml(copy.summary) + "</dt><dd>" + escapeHtml(data.summary || "—") + "</dd></div>" +
+            '<div class="field"><dt>' + escapeHtml(copy.invariants) + "</dt><dd><ul style=\\"margin:0;padding-left:1.1rem\\">" + (inv || "<li>—</li>") + "</ul></dd></div>" +
+            '<div class="field"><dt>' + escapeHtml(copy.suggestedNextStep) + "</dt><dd>" + escapeHtml(data.suggestedNextStep || "—") + "</dd></div>" +
+            '<div class="field"><dt>' + escapeHtml(copy.exampleSnippet) + "</dt><dd><pre style=\\"margin:0;font-family:IBM Plex Mono,monospace;font-size:0.85rem;white-space:pre-wrap\\">" +
+            escapeHtml(data.exampleSnippet || "—") + "</pre></dd></div>";
+        } else {
+          fields =
+            '<div class="field"><dt>' + escapeHtml(copy.summary) + "</dt><dd>" + escapeHtml(data.summary || "—") + "</dd></div>" +
+            '<div class="field"><dt>' + escapeHtml(copy.likelyCause) + "</dt><dd>" + escapeHtml(data.likelyCause || "—") + "</dd></div>" +
+            '<div class="field"><dt>' + escapeHtml(copy.suggestedFix) + "</dt><dd>" + escapeHtml(data.suggestedFix || "—") + "</dd></div>";
+        }
+
         region.innerHTML =
           '<article class="result">' +
-          '<header class="result-head"><h2>' + escapeHtml(copy.resultTitle) + "</h2></header>" +
-          "<dl>" +
-          '<div class="field"><dt>' + escapeHtml(copy.summary) + "</dt><dd>" + escapeHtml(data.summary || "—") + "</dd></div>" +
-          '<div class="field"><dt>' + escapeHtml(copy.likelyCause) + "</dt><dd>" + escapeHtml(data.likelyCause || "—") + "</dd></div>" +
-          '<div class="field"><dt>' + escapeHtml(copy.suggestedFix) + "</dt><dd>" + escapeHtml(data.suggestedFix || "—") + "</dd></div>" +
-          "</dl>" +
+          '<header class="result-head"><h2>' + escapeHtml(title) + "</h2></header>" +
+          "<dl>" + fields + "</dl>" +
           '<aside class="proof" aria-label="' + escapeHtml(copy.proofTitle) + '">' +
           "<h3>" + escapeHtml(copy.proofTitle) + "</h3>" +
           '<dl class="proof-grid">' +
@@ -493,6 +569,18 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
         e.target.dataset.dirty = "1";
       });
 
+      document.querySelectorAll(".mode-tab").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const tab = btn.dataset.tab || "erro";
+          document.getElementById("message").dataset.dirty = "";
+          document.getElementById("context").dataset.dirty = "";
+          applyTabUi(tab);
+          const region = document.getElementById("resultRegion");
+          region.dataset.hasResult = "0";
+          region.innerHTML = '<div class="placeholder" data-i18n="placeholder">' + escapeHtml(copy.placeholder) + "</div>";
+        });
+      });
+
       document.getElementById("localeToggle").addEventListener("click", (e) => {
         e.preventDefault();
         const next = locale === "en-US" ? "pt-BR" : "en-US";
@@ -506,16 +594,23 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
         const region = document.getElementById("resultRegion");
         btn.disabled = true;
         region.dataset.hasResult = "0";
-        region.innerHTML = '<div class="placeholder">' + escapeHtml(copy.analyzing) + "</div>";
+        const pending = activeTab === "erro" ? copy.analyzing : copy.coaching;
+        region.innerHTML = '<div class="placeholder">' + escapeHtml(pending) + "</div>";
         try {
-          const res = await fetch("/analyze-error", {
+          const body = {
+            message: document.getElementById("message").value,
+            context: document.getElementById("context").value,
+            locale,
+          };
+          let url = "/analyze-error";
+          if (activeTab !== "erro") {
+            url = "/coach";
+            body.mode = TAB_MODES[activeTab];
+          }
+          const res = await fetch(url, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              message: document.getElementById("message").value,
-              context: document.getElementById("context").value,
-              locale,
-            }),
+            body: JSON.stringify(body),
           });
           const data = await res.json();
           renderResult(data);
@@ -537,7 +632,15 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
         } else {
           try { localStorage.setItem(STORAGE_KEY, locale); } catch (_) {}
         }
-      } catch (_) {}
+        const storedTab = localStorage.getItem(TAB_KEY);
+        if (storedTab === "erro" || storedTab === "sdd" || storedTab === "ddd" || storedTab === "tdd") {
+          applyTabUi(storedTab);
+        } else {
+          applyTabUi("erro");
+        }
+      } catch (_) {
+        applyTabUi("erro");
+      }
     })();
   </script>
 </body>

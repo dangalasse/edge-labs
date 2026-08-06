@@ -19,20 +19,31 @@ function isEnglish(locale) {
 __name(isEnglish, "isEnglish");
 var PT = {
   title: "Edge Labs",
-  lead: "LLMOps ao vivo no Cloudflare Free Tier. Cole um log de erro \u2014 a resposta inclui provider, model e analyzedAt para voc\xEA verificar que \xE9 infer\xEAncia real, n\xE3o um mock est\xE1tico.",
+  lead: "LLMOps ao vivo no Cloudflare Free Tier. Abas Erro \xB7 SDD \xB7 DDD \xB7 TDD \u2014 cada resposta inclui provider, model e analyzedAt para provar infer\xEAncia real.",
   activeBackend: "Backend ativo",
   geminiFallback: "Secret Gemini n\xE3o configurado \u2014 usando Workers AI",
   geminiActive: "Google Gemini (AI Studio)",
   noBackend: "Nenhum backend LLM dispon\xEDvel",
+  tabErro: "Erro",
+  tabSdd: "SDD",
+  tabDdd: "DDD",
+  tabTdd: "TDD",
+  messageLabel: "Pergunta / cen\xE1rio",
   errorLabel: "Mensagem de erro",
   contextLabel: "Contexto (opcional)",
   analyze: "Analisar ao vivo",
+  coach: "Coach ao vivo",
   analyzing: "Chamando POST /analyze-error\u2026",
+  coaching: "Chamando POST /coach\u2026",
   placeholder: "O resultado aparece aqui\u2026",
   resultTitle: "An\xE1lise",
+  coachResultTitle: "Coaching",
   summary: "Resumo",
   likelyCause: "Causa prov\xE1vel",
   suggestedFix: "Corre\xE7\xE3o sugerida",
+  invariants: "Invariantes",
+  suggestedNextStep: "Pr\xF3ximo passo",
+  exampleSnippet: "Exemplo",
   proofTitle: "Prova de infer\xEAncia",
   provider: "Provider",
   model: "Modelo",
@@ -48,24 +59,41 @@ var PT = {
   localeEn: "ENG-US",
   defaultMessage: "ECONNREFUSED 127.0.0.1:5432",
   defaultContext: "Boot NestJS \u2014 smoke test para recrutador",
+  defaultSddMessage: "Quero expor um endpoint de export CSV sem violar RBAC nem jobs ass\xEDncronos owner-scoped.",
+  defaultSddContext: "Contexto TOTE \u2014 Invent\xE1rio + Governan\xE7a",
+  defaultDddMessage: "O m\xF3dulo de importa\xE7\xE3o precisa falar com invent\xE1rio \u2014 devo usar ACL ou eventos?",
+  defaultDddContext: "NestJS module-per-feature, dois bounded contexts",
+  defaultTddMessage: "Como escrever o primeiro teste para garantir que patrimony \xE9 \xFAnico entre ativos activos?",
+  defaultTddContext: "Invariante de dom\xEDnio \u2014 soft delete",
   errorGeneric: "Falha na an\xE1lise"
 };
 var EN = {
   title: "Edge Labs",
-  lead: "Live LLMOps on Cloudflare Free Tier. Paste an error log \u2014 the response includes provider, model, and analyzedAt so you can verify this is a real inference, not a static mock.",
+  lead: "Live LLMOps on Cloudflare Free Tier. Tabs Erro \xB7 SDD \xB7 DDD \xB7 TDD \u2014 every response includes provider, model, and analyzedAt to prove real inference.",
   activeBackend: "Active backend",
   geminiFallback: "Gemini secret not set \u2014 using Workers AI",
   geminiActive: "Google Gemini (AI Studio)",
   noBackend: "No LLM backend available",
+  tabErro: "Erro",
+  tabSdd: "SDD",
+  tabDdd: "DDD",
+  tabTdd: "TDD",
+  messageLabel: "Question / scenario",
   errorLabel: "Error message",
   contextLabel: "Context (optional)",
   analyze: "Analyze live",
+  coach: "Coach live",
   analyzing: "Calling POST /analyze-error\u2026",
+  coaching: "Calling POST /coach\u2026",
   placeholder: "Response will appear here\u2026",
   resultTitle: "Analysis",
+  coachResultTitle: "Coaching",
   summary: "Summary",
   likelyCause: "Likely cause",
   suggestedFix: "Suggested fix",
+  invariants: "Invariants",
+  suggestedNextStep: "Next step",
+  exampleSnippet: "Example",
   proofTitle: "Inference proof",
   provider: "Provider",
   model: "Model",
@@ -81,6 +109,12 @@ var EN = {
   localeEn: "ENG-US",
   defaultMessage: "ECONNREFUSED 127.0.0.1:5432",
   defaultContext: "NestJS boot \u2014 recruiter smoke test",
+  defaultSddMessage: "I need a CSV export endpoint without breaking RBAC or owner-scoped async jobs.",
+  defaultSddContext: "TOTE context \u2014 Inventory + Governance",
+  defaultDddMessage: "Import module must talk to inventory \u2014 ACL or domain events?",
+  defaultDddContext: "NestJS module-per-feature, two bounded contexts",
+  defaultTddMessage: "How do I write the first test ensuring patrimony is unique among active assets?",
+  defaultTddContext: "Domain invariant \u2014 soft delete",
   errorGeneric: "Analysis failed"
 };
 function copyFor(locale) {
@@ -91,22 +125,116 @@ function languageInstruction(locale) {
   return isEnglish(locale) ? "Write summary, likelyCause, and suggestedFix in clear US English." : "Escreva summary, likelyCause e suggestedFix em portugu\xEAs do Brasil (pt-BR), claro e t\xE9cnico.";
 }
 __name(languageInstruction, "languageInstruction");
+function coachLanguageInstruction(locale) {
+  return isEnglish(locale) ? "Write summary, invariants, suggestedNextStep, and exampleSnippet in clear US English." : "Escreva summary, invariants, suggestedNextStep e exampleSnippet em portugu\xEAs do Brasil (pt-BR), claro e t\xE9cnico.";
+}
+__name(coachLanguageInstruction, "coachLanguageInstruction");
+
+// src/prompts/ddd.ts
+var DDD_EXCERPT = `DDD coaching focus:
+- Ubiquitous language shared with domain experts; ban ambiguous synonyms in APIs and UI.
+- Bounded contexts with explicit integration (ACL, events, shared kernel only when justified).
+- Aggregates: one root enforces invariants; external references by id only.
+- Layering: domain never imports infrastructure; application orchestrates use cases.
+- Repositories persist aggregates; domain services for cross-aggregate rules.`;
+function dddSystemInstruction() {
+  return [
+    "You are a DDD practitioner coaching tactical design \u2014 honest guidance, not auto-generated code dumps.",
+    DDD_EXCERPT,
+    "Reply with ONLY valid JSON keys: summary (string), invariants (string[]), suggestedNextStep (string), exampleSnippet (string).",
+    "invariants: 2-5 DDD rules tailored to the user's question.",
+    "exampleSnippet: a sketch (interface, aggregate boundary, or context map note) under 15 lines."
+  ].join(" ");
+}
+__name(dddSystemInstruction, "dddSystemInstruction");
+
+// src/prompts/sdd.ts
+var SDD_EXCERPT = `SDD coaching (TOTE-inspired excerpt):
+- Ubiquitous language: Asset (Ativo), patrimony (system id, unique), serial (manufacturer, may repeat).
+- Custody (AssetAssignment) links Person \u2194 Asset; User is access account, Person is responsible party.
+- Bounded contexts: Inventory, Catalog & Schema, Identity & Access, Operations, Governance, Platform.
+- Invariants: patrimony unique among active assets; soft-delete only; AuditLog append-only; RBAC from DB per request.
+- Precedence: SDD > ARCHITECTURE > legacy code \u2014 flag violations before coding.`;
+function sddSystemInstruction() {
+  return [
+    "You are a software architect coaching SDD-first design (Specification-Driven Development).",
+    "Use the excerpt below as grounding \u2014 do not claim project-specific facts beyond it.",
+    SDD_EXCERPT,
+    "Coach the user to align code with glossary, bounded contexts, and invariants.",
+    "Reply with ONLY valid JSON keys: summary (string), invariants (string[]), suggestedNextStep (string), exampleSnippet (string).",
+    "invariants: 2-5 domain or design rules relevant to the question.",
+    "exampleSnippet: a brief SDD bullet, ADR stub, or glossary entry \u2014 not production code unless asked."
+  ].join(" ");
+}
+__name(sddSystemInstruction, "sddSystemInstruction");
+
+// src/prompts/sre.ts
+function sreSystemInstruction() {
+  return [
+    "You are a senior SRE coaching a peer through production incident triage.",
+    "Be honest and practical \u2014 do not invent telemetry you were not given.",
+    "Reply with ONLY valid JSON keys: summary (string), invariants (string[]), suggestedNextStep (string), exampleSnippet (string).",
+    "invariants: 2-4 short operational guardrails the engineer should not violate while fixing.",
+    "exampleSnippet: a tiny shell/config snippet if useful, or empty string."
+  ].join(" ");
+}
+__name(sreSystemInstruction, "sreSystemInstruction");
+
+// src/prompts/tdd.ts
+var TDD_EXCERPT = `TDD coaching focus:
+- Red: one failing test expressing desired behaviour; smallest step.
+- Green: minimal code to pass; no speculative features.
+- Refactor: improve design with tests green; extract when duplication hurts readability.
+- Prefer testing behaviour and invariants over implementation details.
+- Integration tests at boundaries; unit tests for pure domain logic.`;
+function tddSystemInstruction() {
+  return [
+    "You are a TDD coach guiding red-green-refactor cycles.",
+    TDD_EXCERPT,
+    "Reply with ONLY valid JSON keys: summary (string), invariants (string[]), suggestedNextStep (string), exampleSnippet (string).",
+    "invariants: 2-4 testing discipline rules for this scenario.",
+    "exampleSnippet: a single test case skeleton (describe/it or test()) \u2014 keep it short."
+  ].join(" ");
+}
+__name(tddSystemInstruction, "tddSystemInstruction");
+
+// src/prompts/index.ts
+function systemInstructionForMode(mode) {
+  switch (mode) {
+    case "sre":
+      return sreSystemInstruction();
+    case "sdd":
+      return sddSystemInstruction();
+    case "ddd":
+      return dddSystemInstruction();
+    case "tdd":
+      return tddSystemInstruction();
+  }
+}
+__name(systemInstructionForMode, "systemInstructionForMode");
 
 // src/gemini.ts
 var DEFAULT_API_BASE = "https://generativelanguage.googleapis.com";
+var WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8";
 async function analyzeErrorLog(payload, env) {
-  if (env.GEMINI_API_KEY) {
-    return analyzeWithGemini(payload, env.GEMINI_API_KEY, env.GEMINI_MODEL);
-  }
-  if (env.AI) {
-    return analyzeWithWorkersAi(payload, env.AI);
-  }
-  throw new Error(
-    "No LLM backend configured: bind Workers AI or set GEMINI_API_KEY secret"
-  );
+  const system = sreAnalyzeSystemPrompt(payload);
+  const user = buildErrorPrompt(payload);
+  const raw = await runInference(env, system, user);
+  return parseAnalysis(raw.text, raw.model, raw.provider);
 }
 __name(analyzeErrorLog, "analyzeErrorLog");
-function systemPrompt(payload) {
+async function coach(payload, env) {
+  const locale = normalizeLocale(payload.locale);
+  const system = [
+    systemInstructionForMode(payload.mode),
+    coachLanguageInstruction(locale)
+  ].join(" ");
+  const user = buildCoachPrompt(payload);
+  const raw = await runInference(env, system, user);
+  return parseCoach(raw.text, raw.model, raw.provider);
+}
+__name(coach, "coach");
+function sreAnalyzeSystemPrompt(payload) {
   const locale = normalizeLocale(payload.locale);
   return [
     "You are a senior SRE.",
@@ -114,28 +242,35 @@ function systemPrompt(payload) {
     languageInstruction(locale)
   ].join(" ");
 }
-__name(systemPrompt, "systemPrompt");
-async function analyzeWithWorkersAi(payload, ai) {
-  const model = "@cf/meta/llama-3.1-8b-instruct-fp8";
-  const prompt = buildPrompt(payload);
-  const result = await ai.run(model, {
+__name(sreAnalyzeSystemPrompt, "sreAnalyzeSystemPrompt");
+async function runInference(env, system, user) {
+  if (env.GEMINI_API_KEY) {
+    return inferGemini(system, user, env.GEMINI_API_KEY, env.GEMINI_MODEL);
+  }
+  if (env.AI) {
+    return inferWorkersAi(system, user, env.AI);
+  }
+  throw new Error(
+    "No LLM backend configured: bind Workers AI or set GEMINI_API_KEY secret"
+  );
+}
+__name(runInference, "runInference");
+async function inferWorkersAi(system, user, ai) {
+  const result = await ai.run(WORKERS_AI_MODEL, {
     messages: [
-      {
-        role: "system",
-        content: systemPrompt(payload)
-      },
-      { role: "user", content: prompt }
+      { role: "system", content: system },
+      { role: "user", content: user }
     ],
-    max_tokens: 512
+    max_tokens: 768
   });
   const text = typeof result === "object" && result !== null && "response" in result && typeof result.response === "string" ? result.response : JSON.stringify(result);
-  return parseAnalysis(text, model, "workers-ai");
+  return { text, model: WORKERS_AI_MODEL, provider: "workers-ai" };
 }
-__name(analyzeWithWorkersAi, "analyzeWithWorkersAi");
-async function analyzeWithGemini(payload, apiKey, model) {
-  const prompt = `${systemPrompt(payload)}
+__name(inferWorkersAi, "inferWorkersAi");
+async function inferGemini(system, user, apiKey, model) {
+  const prompt = `${system}
 
-${buildPrompt(payload)}`;
+${user}`;
   const url = `${DEFAULT_API_BASE}/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const response = await fetch(url, {
     method: "POST",
@@ -156,10 +291,10 @@ ${buildPrompt(payload)}`;
   if (!text) {
     throw new Error("Gemini returned an empty candidate");
   }
-  return parseAnalysis(text, model, "gemini");
+  return { text, model, provider: "gemini" };
 }
-__name(analyzeWithGemini, "analyzeWithGemini");
-function buildPrompt(payload) {
+__name(inferGemini, "inferGemini");
+function buildErrorPrompt(payload) {
   return [
     `Error message: ${payload.message}`,
     payload.stack ? `Stack:
@@ -168,9 +303,23 @@ ${payload.stack}` : "",
 ${payload.context}` : ""
   ].filter(Boolean).join("\n");
 }
-__name(buildPrompt, "buildPrompt");
+__name(buildErrorPrompt, "buildErrorPrompt");
+function buildCoachPrompt(payload) {
+  return [
+    `Mode: ${payload.mode}`,
+    `Question / scenario:
+${payload.message}`,
+    payload.context ? `Context:
+${payload.context}` : ""
+  ].filter(Boolean).join("\n\n");
+}
+__name(buildCoachPrompt, "buildCoachPrompt");
+function cleanJsonText(text) {
+  return text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+}
+__name(cleanJsonText, "cleanJsonText");
 function parseAnalysis(text, model, provider) {
-  const cleaned = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+  const cleaned = cleanJsonText(text);
   const analyzedAt = (/* @__PURE__ */ new Date()).toISOString();
   let parsed;
   try {
@@ -195,6 +344,46 @@ function parseAnalysis(text, model, provider) {
   };
 }
 __name(parseAnalysis, "parseAnalysis");
+function parseCoach(text, model, provider) {
+  const cleaned = cleanJsonText(text);
+  const analyzedAt = (/* @__PURE__ */ new Date()).toISOString();
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return {
+      summary: cleaned.slice(0, 280),
+      invariants: ["Model did not return strict JSON \u2014 verify raw output"],
+      suggestedNextStep: "Retry with a shorter question or check provider logs",
+      exampleSnippet: "",
+      model,
+      provider,
+      analyzedAt
+    };
+  }
+  const invariants = Array.isArray(parsed.invariants) ? parsed.invariants.filter((item) => typeof item === "string").map((item) => item.trim()).filter(Boolean) : [];
+  return {
+    summary: parsed.summary?.trim() || "No summary",
+    invariants: invariants.length > 0 ? invariants : ["No invariants returned"],
+    suggestedNextStep: parsed.suggestedNextStep?.trim() || "Clarify the scenario and retry",
+    exampleSnippet: parsed.exampleSnippet?.trim() || "",
+    model,
+    provider,
+    analyzedAt
+  };
+}
+__name(parseCoach, "parseCoach");
+function normalizeCoachMode(raw) {
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const mode = raw.trim().toLowerCase();
+  if (mode === "sre" || mode === "sdd" || mode === "ddd" || mode === "tdd") {
+    return mode;
+  }
+  return null;
+}
+__name(normalizeCoachMode, "normalizeCoachMode");
 
 // src/playground.ts
 function escapeHtml(value) {
@@ -318,6 +507,28 @@ function playgroundHtml(provider, locale) {
       color: var(--signal);
     }
     .badge.warn { color: var(--warn); }
+    .mode-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin: 0.75rem 0 0.25rem;
+    }
+    .mode-tab {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--mist);
+      padding: 0.45rem 0.75rem;
+      font: 600 0.78rem "IBM Plex Mono", ui-monospace, monospace;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+    .mode-tab:hover { color: var(--paper); border-color: color-mix(in srgb, var(--signal) 45%, var(--line)); }
+    .mode-tab[aria-selected="true"] {
+      background: color-mix(in srgb, var(--signal) 18%, var(--panel));
+      border-color: var(--signal);
+      color: var(--paper);
+    }
     label {
       display: block;
       font-family: "IBM Plex Mono", ui-monospace, monospace;
@@ -499,8 +710,15 @@ function playgroundHtml(provider, locale) {
       ${statusBadges(provider, t)}
     </p>
 
+    <div class="mode-tabs" role="tablist" aria-label="Coach modes">
+      <button type="button" class="mode-tab" role="tab" id="tab-erro" data-tab="erro" aria-selected="true" data-i18n="tabErro">${escapeHtml(t.tabErro)}</button>
+      <button type="button" class="mode-tab" role="tab" id="tab-sdd" data-tab="sdd" aria-selected="false" data-i18n="tabSdd">${escapeHtml(t.tabSdd)}</button>
+      <button type="button" class="mode-tab" role="tab" id="tab-ddd" data-tab="ddd" aria-selected="false" data-i18n="tabDdd">${escapeHtml(t.tabDdd)}</button>
+      <button type="button" class="mode-tab" role="tab" id="tab-tdd" data-tab="tdd" aria-selected="false" data-i18n="tabTdd">${escapeHtml(t.tabTdd)}</button>
+    </div>
+
     <form id="analyzeForm" novalidate>
-      <label for="message" data-i18n="errorLabel">${escapeHtml(t.errorLabel)}</label>
+      <label for="message" id="messageLabel" data-i18n="errorLabel">${escapeHtml(t.errorLabel)}</label>
       <textarea id="message" name="message" rows="3" required>${escapeHtml(t.defaultMessage)}</textarea>
 
       <label for="context" data-i18n="contextLabel">${escapeHtml(t.contextLabel)}</label>
@@ -528,9 +746,13 @@ function playgroundHtml(provider, locale) {
   <script>
     (() => {
       const STORAGE_KEY = "edge-labs-locale";
+      const TAB_KEY = "edge-labs-tab";
       const boot = JSON.parse(document.getElementById("i18n-boot").textContent);
       let locale = document.documentElement.lang || "pt-BR";
       let copy = boot;
+      let activeTab = "erro";
+
+      const TAB_MODES = { erro: null, sdd: "sdd", ddd: "ddd", tdd: "tdd" };
 
       const COPY = {
         "pt-BR": null,
@@ -547,6 +769,31 @@ function playgroundHtml(provider, locale) {
       const PT = ${JSON.stringify(copyFor("pt-BR")).replaceAll("</", "<\\/")};
       COPY["en-US"] = EN;
       COPY["pt-BR"] = PT;
+
+      function defaultsForTab(tab) {
+        if (tab === "sdd") return { message: copy.defaultSddMessage, context: copy.defaultSddContext };
+        if (tab === "ddd") return { message: copy.defaultDddMessage, context: copy.defaultDddContext };
+        if (tab === "tdd") return { message: copy.defaultTddMessage, context: copy.defaultTddContext };
+        return { message: copy.defaultMessage, context: copy.defaultContext };
+      }
+
+      function applyTabUi(tab) {
+        activeTab = tab;
+        document.querySelectorAll(".mode-tab").forEach((btn) => {
+          const selected = btn.dataset.tab === tab;
+          btn.setAttribute("aria-selected", selected ? "true" : "false");
+        });
+        const label = document.getElementById("messageLabel");
+        const runBtn = document.getElementById("run");
+        if (label) label.textContent = tab === "erro" ? copy.errorLabel : copy.messageLabel;
+        if (runBtn) runBtn.textContent = tab === "erro" ? copy.analyze : copy.coach;
+        const msg = document.getElementById("message");
+        const ctx = document.getElementById("context");
+        const defs = defaultsForTab(tab);
+        if (msg && !msg.dataset.dirty) msg.value = defs.message;
+        if (ctx && !ctx.dataset.dirty) ctx.value = defs.context;
+        try { localStorage.setItem(TAB_KEY, tab); } catch (_) {}
+      }
 
       function applyCopy(next) {
         locale = next === "en-US" ? "en-US" : "pt-BR";
@@ -579,8 +826,11 @@ function playgroundHtml(provider, locale) {
 
         const msg = document.getElementById("message");
         const ctx = document.getElementById("context");
-        if (msg && !msg.dataset.dirty) msg.value = copy.defaultMessage;
-        if (ctx && !ctx.dataset.dirty) ctx.value = copy.defaultContext;
+        const defs = defaultsForTab(activeTab);
+        if (msg && !msg.dataset.dirty) msg.value = defs.message;
+        if (ctx && !ctx.dataset.dirty) ctx.value = defs.context;
+
+        applyTabUi(activeTab);
 
         const region = document.getElementById("resultRegion");
         if (region.dataset.hasResult !== "1") {
@@ -627,14 +877,29 @@ function playgroundHtml(provider, locale) {
         }
 
         const raw = JSON.stringify(data, null, 2);
+        const isCoach = Array.isArray(data.invariants);
+        const title = isCoach ? copy.coachResultTitle : copy.resultTitle;
+
+        let fields = "";
+        if (isCoach) {
+          const inv = (data.invariants || []).map((i) => "<li>" + escapeHtml(i) + "</li>").join("");
+          fields =
+            '<div class="field"><dt>' + escapeHtml(copy.summary) + "</dt><dd>" + escapeHtml(data.summary || "\u2014") + "</dd></div>" +
+            '<div class="field"><dt>' + escapeHtml(copy.invariants) + "</dt><dd><ul style=\\"margin:0;padding-left:1.1rem\\">" + (inv || "<li>\u2014</li>") + "</ul></dd></div>" +
+            '<div class="field"><dt>' + escapeHtml(copy.suggestedNextStep) + "</dt><dd>" + escapeHtml(data.suggestedNextStep || "\u2014") + "</dd></div>" +
+            '<div class="field"><dt>' + escapeHtml(copy.exampleSnippet) + "</dt><dd><pre style=\\"margin:0;font-family:IBM Plex Mono,monospace;font-size:0.85rem;white-space:pre-wrap\\">" +
+            escapeHtml(data.exampleSnippet || "\u2014") + "</pre></dd></div>";
+        } else {
+          fields =
+            '<div class="field"><dt>' + escapeHtml(copy.summary) + "</dt><dd>" + escapeHtml(data.summary || "\u2014") + "</dd></div>" +
+            '<div class="field"><dt>' + escapeHtml(copy.likelyCause) + "</dt><dd>" + escapeHtml(data.likelyCause || "\u2014") + "</dd></div>" +
+            '<div class="field"><dt>' + escapeHtml(copy.suggestedFix) + "</dt><dd>" + escapeHtml(data.suggestedFix || "\u2014") + "</dd></div>";
+        }
+
         region.innerHTML =
           '<article class="result">' +
-          '<header class="result-head"><h2>' + escapeHtml(copy.resultTitle) + "</h2></header>" +
-          "<dl>" +
-          '<div class="field"><dt>' + escapeHtml(copy.summary) + "</dt><dd>" + escapeHtml(data.summary || "\u2014") + "</dd></div>" +
-          '<div class="field"><dt>' + escapeHtml(copy.likelyCause) + "</dt><dd>" + escapeHtml(data.likelyCause || "\u2014") + "</dd></div>" +
-          '<div class="field"><dt>' + escapeHtml(copy.suggestedFix) + "</dt><dd>" + escapeHtml(data.suggestedFix || "\u2014") + "</dd></div>" +
-          "</dl>" +
+          '<header class="result-head"><h2>' + escapeHtml(title) + "</h2></header>" +
+          "<dl>" + fields + "</dl>" +
           '<aside class="proof" aria-label="' + escapeHtml(copy.proofTitle) + '">' +
           "<h3>" + escapeHtml(copy.proofTitle) + "</h3>" +
           '<dl class="proof-grid">' +
@@ -682,6 +947,18 @@ function playgroundHtml(provider, locale) {
         e.target.dataset.dirty = "1";
       });
 
+      document.querySelectorAll(".mode-tab").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const tab = btn.dataset.tab || "erro";
+          document.getElementById("message").dataset.dirty = "";
+          document.getElementById("context").dataset.dirty = "";
+          applyTabUi(tab);
+          const region = document.getElementById("resultRegion");
+          region.dataset.hasResult = "0";
+          region.innerHTML = '<div class="placeholder" data-i18n="placeholder">' + escapeHtml(copy.placeholder) + "</div>";
+        });
+      });
+
       document.getElementById("localeToggle").addEventListener("click", (e) => {
         e.preventDefault();
         const next = locale === "en-US" ? "pt-BR" : "en-US";
@@ -695,16 +972,23 @@ function playgroundHtml(provider, locale) {
         const region = document.getElementById("resultRegion");
         btn.disabled = true;
         region.dataset.hasResult = "0";
-        region.innerHTML = '<div class="placeholder">' + escapeHtml(copy.analyzing) + "</div>";
+        const pending = activeTab === "erro" ? copy.analyzing : copy.coaching;
+        region.innerHTML = '<div class="placeholder">' + escapeHtml(pending) + "</div>";
         try {
-          const res = await fetch("/analyze-error", {
+          const body = {
+            message: document.getElementById("message").value,
+            context: document.getElementById("context").value,
+            locale,
+          };
+          let url = "/analyze-error";
+          if (activeTab !== "erro") {
+            url = "/coach";
+            body.mode = TAB_MODES[activeTab];
+          }
+          const res = await fetch(url, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              message: document.getElementById("message").value,
-              context: document.getElementById("context").value,
-              locale,
-            }),
+            body: JSON.stringify(body),
           });
           const data = await res.json();
           renderResult(data);
@@ -726,7 +1010,15 @@ function playgroundHtml(provider, locale) {
         } else {
           try { localStorage.setItem(STORAGE_KEY, locale); } catch (_) {}
         }
-      } catch (_) {}
+        const storedTab = localStorage.getItem(TAB_KEY);
+        if (storedTab === "erro" || storedTab === "sdd" || storedTab === "ddd" || storedTab === "tdd") {
+          applyTabUi(storedTab);
+        } else {
+          applyTabUi("erro");
+        }
+      } catch (_) {
+        applyTabUi("erro");
+      }
     })();
   <\/script>
 </body>
@@ -765,11 +1057,16 @@ var index_default = {
         provider,
         geminiConfigured: Boolean(env.GEMINI_API_KEY),
         workersAiBound: Boolean(env.AI),
+        endpoints: ["/analyze-error", "/coach"],
+        coachModes: ["sre", "sdd", "ddd", "tdd"],
         tip: "Open https://edge.galasse.dev/ to run a live analysis and see provider + model in the response."
       });
     }
     if (request.method === "POST" && url.pathname === "/analyze-error") {
       return handleAnalyze(request, env);
+    }
+    if (request.method === "POST" && url.pathname === "/coach") {
+      return handleCoach(request, env);
     }
     return json({ error: "Not found" }, 404);
   }
@@ -784,14 +1081,18 @@ function activeProvider(env) {
   return "none";
 }
 __name(activeProvider, "activeProvider");
+function llmEnv(env) {
+  return {
+    AI: env.AI,
+    GEMINI_API_KEY: env.GEMINI_API_KEY,
+    GEMINI_MODEL: env.GEMINI_MODEL || "gemini-2.0-flash"
+  };
+}
+__name(llmEnv, "llmEnv");
 async function handleAnalyze(request, env) {
-  if (!env.GEMINI_API_KEY && !env.AI) {
-    return json(
-      {
-        error: "No LLM backend: enable Workers AI binding or wrangler secret put GEMINI_API_KEY"
-      },
-      503
-    );
+  const backend = requireLlm(env);
+  if (backend) {
+    return backend;
   }
   let body;
   try {
@@ -799,7 +1100,7 @@ async function handleAnalyze(request, env) {
   } catch {
     return json({ error: "Body must be JSON" }, 400);
   }
-  const payload = normalizePayload(body);
+  const payload = normalizeErrorPayload(body);
   if (!payload) {
     return json(
       {
@@ -809,11 +1110,7 @@ async function handleAnalyze(request, env) {
     );
   }
   try {
-    const result = await analyzeErrorLog(payload, {
-      AI: env.AI,
-      GEMINI_API_KEY: env.GEMINI_API_KEY,
-      GEMINI_MODEL: env.GEMINI_MODEL || "gemini-2.0-flash"
-    });
+    const result = await analyzeErrorLog(payload, llmEnv(env));
     return json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upstream failure";
@@ -821,7 +1118,48 @@ async function handleAnalyze(request, env) {
   }
 }
 __name(handleAnalyze, "handleAnalyze");
-function normalizePayload(raw) {
+async function handleCoach(request, env) {
+  const backend = requireLlm(env);
+  if (backend) {
+    return backend;
+  }
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Body must be JSON" }, 400);
+  }
+  const payload = normalizeCoachPayload(body);
+  if (!payload) {
+    return json(
+      {
+        error: 'Expected JSON: { "mode": "sre"|"sdd"|"ddd"|"tdd", "message": string, "context"?: string, "locale"?: "pt-BR"|"en-US" }'
+      },
+      400
+    );
+  }
+  try {
+    const result = await coach(payload, llmEnv(env));
+    return json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Upstream failure";
+    return json({ error: message }, 502);
+  }
+}
+__name(handleCoach, "handleCoach");
+function requireLlm(env) {
+  if (!env.GEMINI_API_KEY && !env.AI) {
+    return json(
+      {
+        error: "No LLM backend: enable Workers AI binding or wrangler secret put GEMINI_API_KEY"
+      },
+      503
+    );
+  }
+  return null;
+}
+__name(requireLlm, "requireLlm");
+function normalizeErrorPayload(raw) {
   if (typeof raw !== "object" || raw === null) {
     return null;
   }
@@ -836,7 +1174,24 @@ function normalizePayload(raw) {
     locale: normalizeLocale(obj.locale)
   };
 }
-__name(normalizePayload, "normalizePayload");
+__name(normalizeErrorPayload, "normalizeErrorPayload");
+function normalizeCoachPayload(raw) {
+  if (typeof raw !== "object" || raw === null) {
+    return null;
+  }
+  const obj = raw;
+  const mode = normalizeCoachMode(obj.mode);
+  if (!mode || typeof obj.message !== "string" || obj.message.trim().length === 0) {
+    return null;
+  }
+  return {
+    mode,
+    message: obj.message.trim(),
+    context: typeof obj.context === "string" ? obj.context : void 0,
+    locale: normalizeLocale(obj.locale)
+  };
+}
+__name(normalizeCoachPayload, "normalizeCoachPayload");
 function corsHeaders() {
   return {
     "access-control-allow-origin": "*",

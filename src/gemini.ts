@@ -1,33 +1,49 @@
-import { languageInstruction, normalizeLocale } from "./i18n";
-import type { AnalysisResult, ErrorLogPayload } from "./types";
+import { coachLanguageInstruction, languageInstruction, normalizeLocale } from "./i18n";
+import { systemInstructionForMode } from "./prompts";
+import type {
+  AnalysisResult,
+  CoachMode,
+  CoachPayload,
+  CoachResult,
+  ErrorLogPayload,
+} from "./types";
 
 const DEFAULT_API_BASE = "https://generativelanguage.googleapis.com";
+const WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8";
+
+type LlmEnv = {
+  AI?: Ai;
+  GEMINI_API_KEY?: string;
+  GEMINI_MODEL: string;
+};
 
 /**
  * Prefer Gemini when GEMINI_API_KEY is set (real Google AI Studio path).
  * Otherwise Workers AI (Cloudflare Free Tier) so the demo stays live.
- * WHY: recruiters always get a live answer; provider field proves which backend ran.
  */
 export async function analyzeErrorLog(
   payload: ErrorLogPayload,
-  env: {
-    AI?: Ai;
-    GEMINI_API_KEY?: string;
-    GEMINI_MODEL: string;
-  },
+  env: LlmEnv,
 ): Promise<AnalysisResult> {
-  if (env.GEMINI_API_KEY) {
-    return analyzeWithGemini(payload, env.GEMINI_API_KEY, env.GEMINI_MODEL);
-  }
-  if (env.AI) {
-    return analyzeWithWorkersAi(payload, env.AI);
-  }
-  throw new Error(
-    "No LLM backend configured: bind Workers AI or set GEMINI_API_KEY secret",
-  );
+  const system = sreAnalyzeSystemPrompt(payload);
+  const user = buildErrorPrompt(payload);
+  const raw = await runInference(env, system, user);
+  return parseAnalysis(raw.text, raw.model, raw.provider);
 }
 
-function systemPrompt(payload: ErrorLogPayload): string {
+/** POST /coach — richer coaching shape for all modes including sre. */
+export async function coach(payload: CoachPayload, env: LlmEnv): Promise<CoachResult> {
+  const locale = normalizeLocale(payload.locale);
+  const system = [
+    systemInstructionForMode(payload.mode),
+    coachLanguageInstruction(locale),
+  ].join(" ");
+  const user = buildCoachPrompt(payload);
+  const raw = await runInference(env, system, user);
+  return parseCoach(raw.text, raw.model, raw.provider);
+}
+
+function sreAnalyzeSystemPrompt(payload: ErrorLogPayload): string {
   const locale = normalizeLocale(payload.locale);
   return [
     "You are a senior SRE.",
@@ -36,23 +52,33 @@ function systemPrompt(payload: ErrorLogPayload): string {
   ].join(" ");
 }
 
-async function analyzeWithWorkersAi(
-  payload: ErrorLogPayload,
-  ai: Ai,
-): Promise<AnalysisResult> {
-  // WHY: base llama-3.1-8b-instruct was deprecated on Workers AI (2026-05-30); fp8 remains Free Tier.
-  const model = "@cf/meta/llama-3.1-8b-instruct-fp8";
-  const prompt = buildPrompt(payload);
+async function runInference(
+  env: LlmEnv,
+  system: string,
+  user: string,
+): Promise<{ text: string; model: string; provider: "workers-ai" | "gemini" }> {
+  if (env.GEMINI_API_KEY) {
+    return inferGemini(system, user, env.GEMINI_API_KEY, env.GEMINI_MODEL);
+  }
+  if (env.AI) {
+    return inferWorkersAi(system, user, env.AI);
+  }
+  throw new Error(
+    "No LLM backend configured: bind Workers AI or set GEMINI_API_KEY secret",
+  );
+}
 
-  const result = await ai.run(model, {
+async function inferWorkersAi(
+  system: string,
+  user: string,
+  ai: Ai,
+): Promise<{ text: string; model: string; provider: "workers-ai" }> {
+  const result = await ai.run(WORKERS_AI_MODEL, {
     messages: [
-      {
-        role: "system",
-        content: systemPrompt(payload),
-      },
-      { role: "user", content: prompt },
+      { role: "system", content: system },
+      { role: "user", content: user },
     ],
-    max_tokens: 512,
+    max_tokens: 768,
   });
 
   const text =
@@ -63,15 +89,16 @@ async function analyzeWithWorkersAi(
       ? (result as { response: string }).response
       : JSON.stringify(result);
 
-  return parseAnalysis(text, model, "workers-ai");
+  return { text, model: WORKERS_AI_MODEL, provider: "workers-ai" };
 }
 
-export async function analyzeWithGemini(
-  payload: ErrorLogPayload,
+async function inferGemini(
+  system: string,
+  user: string,
   apiKey: string,
   model: string,
-): Promise<AnalysisResult> {
-  const prompt = `${systemPrompt(payload)}\n\n${buildPrompt(payload)}`;
+): Promise<{ text: string; model: string; provider: "gemini" }> {
+  const prompt = `${system}\n\n${user}`;
   const url = `${DEFAULT_API_BASE}/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const response = await fetch(url, {
@@ -99,10 +126,10 @@ export async function analyzeWithGemini(
     throw new Error("Gemini returned an empty candidate");
   }
 
-  return parseAnalysis(text, model, "gemini");
+  return { text, model, provider: "gemini" };
 }
 
-function buildPrompt(payload: ErrorLogPayload): string {
+function buildErrorPrompt(payload: ErrorLogPayload): string {
   return [
     `Error message: ${payload.message}`,
     payload.stack ? `Stack:\n${payload.stack}` : "",
@@ -112,17 +139,30 @@ function buildPrompt(payload: ErrorLogPayload): string {
     .join("\n");
 }
 
+function buildCoachPrompt(payload: CoachPayload): string {
+  return [
+    `Mode: ${payload.mode}`,
+    `Question / scenario:\n${payload.message}`,
+    payload.context ? `Context:\n${payload.context}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function cleanJsonText(text: string): string {
+  return text
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+}
+
 function parseAnalysis(
   text: string,
   model: string,
   provider: "workers-ai" | "gemini",
 ): AnalysisResult {
-  const cleaned = text
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-
+  const cleaned = cleanJsonText(text);
   const analyzedAt = new Date().toISOString();
 
   let parsed: { summary?: string; likelyCause?: string; suggestedFix?: string };
@@ -148,4 +188,62 @@ function parseAnalysis(
     provider,
     analyzedAt,
   };
+}
+
+function parseCoach(
+  text: string,
+  model: string,
+  provider: "workers-ai" | "gemini",
+): CoachResult {
+  const cleaned = cleanJsonText(text);
+  const analyzedAt = new Date().toISOString();
+
+  let parsed: {
+    summary?: string;
+    invariants?: unknown;
+    suggestedNextStep?: string;
+    exampleSnippet?: string;
+  };
+  try {
+    parsed = JSON.parse(cleaned) as typeof parsed;
+  } catch {
+    return {
+      summary: cleaned.slice(0, 280),
+      invariants: ["Model did not return strict JSON — verify raw output"],
+      suggestedNextStep: "Retry with a shorter question or check provider logs",
+      exampleSnippet: "",
+      model,
+      provider,
+      analyzedAt,
+    };
+  }
+
+  const invariants = Array.isArray(parsed.invariants)
+    ? parsed.invariants
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+
+  return {
+    summary: parsed.summary?.trim() || "No summary",
+    invariants: invariants.length > 0 ? invariants : ["No invariants returned"],
+    suggestedNextStep:
+      parsed.suggestedNextStep?.trim() || "Clarify the scenario and retry",
+    exampleSnippet: parsed.exampleSnippet?.trim() || "",
+    model,
+    provider,
+    analyzedAt,
+  };
+}
+
+export function normalizeCoachMode(raw: unknown): CoachMode | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const mode = raw.trim().toLowerCase();
+  if (mode === "sre" || mode === "sdd" || mode === "ddd" || mode === "tdd") {
+    return mode;
+  }
+  return null;
 }

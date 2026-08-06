@@ -1,5 +1,8 @@
 import type { Locale } from "./i18n";
 
+/** Coach mode for POST /coach */
+export type CoachMode = "sre" | "sdd" | "ddd" | "tdd";
+
 /** Request body for POST /analyze-error */
 export interface ErrorLogPayload {
   message: string;
@@ -9,7 +12,15 @@ export interface ErrorLogPayload {
   locale?: Locale;
 }
 
-/** Structured analysis returned to the caller */
+/** Request body for POST /coach */
+export interface CoachPayload {
+  mode: CoachMode;
+  message: string;
+  context?: string;
+  locale?: Locale;
+}
+
+/** Structured analysis returned to the caller (POST /analyze-error — backward compat) */
 export interface AnalysisResult {
   summary: string;
   likelyCause: string;
@@ -22,6 +33,16 @@ export interface AnalysisResult {
   analyzedAt: string;
 }
 
+/** Rich coaching response for POST /coach */
+export interface CoachResult {
+  summary: string;
+  invariants: string[];
+  suggestedNextStep: string;
+  exampleSnippet: string;
+  model: string;
+  provider: "workers-ai" | "gemini";
+  analyzedAt: string;
+}
 
 export interface Env {
   /** Optional — `wrangler secret put GEMINI_API_KEY` */
