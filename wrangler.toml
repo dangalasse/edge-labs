@@ -1,5 +1,6 @@
 # WHY: Worker on Cloudflare Free Tier. Workers AI binding = live LLMOps without Google key.
 # Optional Gemini: npx wrangler secret put GEMINI_API_KEY
+# Demo gate: TURNSTILE_SECRET + DEMO_TICKET_SECRET
 name = "edge-labs"
 main = "src/index.ts"
 compatibility_date = "2025-05-05"
@@ -8,5 +9,11 @@ workers_dev = true
 [ai]
 binding = "AI"
 
+[[kv_namespaces]]
+binding = "DEMO_GATE_KV"
+id = "58c74766fe084e3bbd8e8a8abf9bad9d"
+preview_id = "58c74766fe084e3bbd8e8a8abf9bad9d"
+
 [vars]
 GEMINI_MODEL = "gemini-2.0-flash"
+TURNSTILE_SITE_KEY = "0x4AAAAAAEIQZbWBqWLSKe_r"
