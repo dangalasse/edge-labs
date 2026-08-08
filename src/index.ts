@@ -239,12 +239,16 @@ async function cachedOrRun<T>(
   cacheKey: string,
   run: () => Promise<T>,
 ): Promise<T> {
-  const hit = await env.DEMO_GATE_KV.get(cacheKey, "json");
+  const kv = env.DEMO_GATE_KV;
+  if (!kv) {
+    return run();
+  }
+  const hit = await kv.get(cacheKey, "json");
   if (hit) {
     return hit as T;
   }
   const result = await run();
-  await env.DEMO_GATE_KV.put(cacheKey, JSON.stringify(result), {
+  await kv.put(cacheKey, JSON.stringify(result), {
     expirationTtl: PROMPT_CACHE_TTL_SEC,
   });
   return result;
