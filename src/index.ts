@@ -12,7 +12,7 @@ import { playgroundHtml } from "./playground";
 import type { CoachPayload, Env, ErrorLogPayload } from "./types";
 
 /**
- * Edge Labs — LLMOps Worker on Cloudflare Free Tier.
+ * Edge Labs — error-log coach on Cloudflare Free Tier (Workers AI, optional Gemini).
  * Mutations require Demo Gate (Turnstile → ticket → KV quota).
  */
 
@@ -87,7 +87,7 @@ export default {
           gate: Boolean(env.TURNSTILE_SECRET && env.DEMO_TICKET_SECRET),
           endpoints: ["/analyze-error", "/coach", "/demo-ticket"],
           coachModes: ["sre", "sdd", "ddd", "tdd"],
-          tip: "Open https://edge.galasse.dev/ — complete Turnstile, then Analyze / Coach.",
+          tip: "Open https://edge.galasse.dev/ — complete Turnstile, then Analyze. Same error log, modes sre|sdd|ddd|tdd.",
         },
         200,
         request,
@@ -275,7 +275,7 @@ async function handleAnalyze(request: Request, env: Env): Promise<Response> {
     return json(
       {
         error:
-          'Expected JSON: { "message": string, "stack"?: string, "context"?: string, "locale"?: "pt-BR"|"en-US" }',
+          'Expected JSON: { "message": string, "stack"?: string, "context"?: string, "mode"?: "sre"|"sdd"|"ddd"|"tdd", "locale"?: "pt-BR"|"en-US" }',
       },
       400,
       request,
@@ -358,6 +358,7 @@ function normalizeErrorPayload(raw: unknown): ErrorLogPayload | null {
     message: obj.message.trim(),
     stack: typeof obj.stack === "string" ? obj.stack : undefined,
     context: typeof obj.context === "string" ? obj.context : undefined,
+    mode: normalizeCoachMode(obj.mode) ?? "sre",
     locale: normalizeLocale(obj.locale),
   };
 }

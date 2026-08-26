@@ -1,5 +1,5 @@
 import { coachLanguageInstruction, languageInstruction, normalizeLocale } from "./i18n";
-import { systemInstructionForMode } from "./prompts";
+import { analyzeSystemInstructionForMode, systemInstructionForMode } from "./prompts";
 import type {
   AnalysisResult,
   CoachMode,
@@ -25,10 +25,12 @@ export async function analyzeErrorLog(
   payload: ErrorLogPayload,
   env: LlmEnv,
 ): Promise<AnalysisResult> {
-  const system = sreAnalyzeSystemPrompt(payload);
-  const user = buildErrorPrompt(payload);
+  const mode = payload.mode ?? "sre";
+  const locale = normalizeLocale(payload.locale);
+  const system = [analyzeSystemInstructionForMode(mode), languageInstruction(locale)].join(" ");
+  const user = buildErrorPrompt(payload, mode);
   const raw = await runInference(env, system, user);
-  return parseAnalysis(raw.text, raw.model, raw.provider);
+  return parseAnalysis(raw.text, raw.model, raw.provider, mode);
 }
 
 /** POST /coach — richer coaching shape for all modes including sre. */
@@ -43,13 +45,15 @@ export async function coach(payload: CoachPayload, env: LlmEnv): Promise<CoachRe
   return parseCoach(raw.text, raw.model, raw.provider);
 }
 
-function sreAnalyzeSystemPrompt(payload: ErrorLogPayload): string {
-  const locale = normalizeLocale(payload.locale);
+function buildErrorPrompt(payload: ErrorLogPayload, mode: CoachMode): string {
   return [
-    "You are a senior SRE.",
-    "Reply with ONLY valid JSON keys: summary, likelyCause, suggestedFix (strings).",
-    languageInstruction(locale),
-  ].join(" ");
+    `Analysis mode: ${mode}`,
+    `Error message: ${payload.message}`,
+    payload.stack ? `Stack:\n${payload.stack}` : "",
+    payload.context ? `Context:\n${payload.context}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function runInference(
@@ -129,16 +133,6 @@ async function inferGemini(
   return { text, model, provider: "gemini" };
 }
 
-function buildErrorPrompt(payload: ErrorLogPayload): string {
-  return [
-    `Error message: ${payload.message}`,
-    payload.stack ? `Stack:\n${payload.stack}` : "",
-    payload.context ? `Context:\n${payload.context}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
 function buildCoachPrompt(payload: CoachPayload): string {
   return [
     `Mode: ${payload.mode}`,
@@ -161,6 +155,7 @@ function parseAnalysis(
   text: string,
   model: string,
   provider: "workers-ai" | "gemini",
+  mode: CoachMode,
 ): AnalysisResult {
   const cleaned = cleanJsonText(text);
   const analyzedAt = new Date().toISOString();
@@ -175,6 +170,7 @@ function parseAnalysis(
       suggestedFix: "Inspect raw model output and retry",
       model,
       provider,
+      mode,
       analyzedAt,
     };
   }
@@ -186,6 +182,7 @@ function parseAnalysis(
       parsed.suggestedFix?.trim() || "Inspect logs and reproduce locally",
     model,
     provider,
+    mode,
     analyzedAt,
   };
 }

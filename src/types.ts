@@ -8,6 +8,8 @@ export interface ErrorLogPayload {
   message: string;
   stack?: string;
   context?: string;
+  /** Analysis lens — same error log, different angle. Default sre. */
+  mode?: CoachMode;
   /** UI / answer language — mirrors portfolio `pt-BR` | `en-US` */
   locale?: Locale;
 }
@@ -29,6 +31,8 @@ export interface AnalysisResult {
   model: string;
   /** Which backend answered — recruiters can trust this over marketing copy */
   provider: "workers-ai" | "gemini";
+  /** Lens used for this analysis */
+  mode: CoachMode;
   /** UTC timestamp of the inference */
   analyzedAt: string;
 }
@@ -51,4 +55,8 @@ export interface Env {
   GEMINI_MODEL: string;
   /** Cloudflare Workers AI binding (Free Tier) — primary demo path */
   AI?: Ai;
+  DEMO_GATE_KV: KVNamespace;
+  TURNSTILE_SITE_KEY: string;
+  TURNSTILE_SECRET?: string;
+  DEMO_TICKET_SECRET?: string;
 }

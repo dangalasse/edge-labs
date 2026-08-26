@@ -20,9 +20,9 @@ function statusBadges(provider: string, t: ReturnType<typeof copyFor>): string {
     `<span class="badge" id="providerBadge">${escapeHtml(provider)}</span>`,
   ];
   if (provider === "workers-ai") {
-    parts.push(`<span class="badge warn" id="backendNote">${escapeHtml(t.geminiFallback)}</span>`);
+    parts.push(`<span class="badge ok" id="backendNote">${escapeHtml(t.workersAiHealthy)}</span>`);
   } else if (provider === "gemini") {
-    parts.push(`<span class="badge" id="backendNote">${escapeHtml(t.geminiActive)}</span>`);
+    parts.push(`<span class="badge ok" id="backendNote">${escapeHtml(t.geminiUpgrade)}</span>`);
   } else {
     parts.push(`<span class="badge warn" id="backendNote">${escapeHtml(t.noBackend)}</span>`);
   }
@@ -32,19 +32,24 @@ function statusBadges(provider: string, t: ReturnType<typeof copyFor>): string {
 /**
  * Recruiter playground: portfolio-style PT-BR / ENG-US toggle + semantic analysis cards.
  */
-export function playgroundHtml(provider: string, locale: Locale): Response {
+export function playgroundHtml(
+  provider: string,
+  locale: Locale,
+  turnstileSiteKey = "",
+): Response {
   const t = copyFor(locale);
   const other: Locale = isEnglish(locale) ? "pt-BR" : "en-US";
   const otherLabel = isEnglish(locale) ? t.localePt : t.localeEn;
   const currentLabel = isEnglish(locale) ? t.localeEn : t.localePt;
   const copyJson = JSON.stringify(t).replaceAll("</", "<\\/");
+  const siteKeyJson = JSON.stringify(turnstileSiteKey);
 
   const html = `<!DOCTYPE html>
 <html lang="${locale}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(t.title)} — LLMOps</title>
+  <title>${escapeHtml(t.title)}</title>
   <meta name="description" content="${escapeHtml(t.lead)}" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -129,6 +134,7 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
       color: var(--signal);
     }
     .badge.warn { color: var(--warn); }
+    .badge.ok { color: var(--ok); }
     .mode-tabs {
       display: flex;
       flex-wrap: wrap;
@@ -347,6 +353,7 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
       <input id="context" name="context" type="text" value="${escapeHtml(t.defaultContext)}" autocomplete="off" />
 
       <div class="actions">
+        <div id="turnstileHost" style="margin-bottom:0.75rem;min-height:65px"></div>
         <button class="btn-primary" id="run" type="submit" data-i18n="analyze">${escapeHtml(t.analyze)}</button>
       </div>
     </form>
@@ -364,17 +371,21 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
     </p>
   </div>
 
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
   <script type="application/json" id="i18n-boot">${copyJson}</script>
   <script>
     (() => {
       const STORAGE_KEY = "edge-labs-locale";
       const TAB_KEY = "edge-labs-tab";
+      const TURNSTILE_SITE_KEY = ${siteKeyJson};
       const boot = JSON.parse(document.getElementById("i18n-boot").textContent);
       let locale = document.documentElement.lang || "pt-BR";
       let copy = boot;
       let activeTab = "erro";
+      let turnstileToken = "";
+      let turnstileWidgetId = null;
 
-      const TAB_MODES = { erro: null, sdd: "sdd", ddd: "ddd", tdd: "tdd" };
+      const TAB_MODES = { erro: "sre", sdd: "sdd", ddd: "ddd", tdd: "tdd" };
 
       const COPY = {
         "pt-BR": null,
@@ -392,13 +403,6 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
       COPY["en-US"] = EN;
       COPY["pt-BR"] = PT;
 
-      function defaultsForTab(tab) {
-        if (tab === "sdd") return { message: copy.defaultSddMessage, context: copy.defaultSddContext };
-        if (tab === "ddd") return { message: copy.defaultDddMessage, context: copy.defaultDddContext };
-        if (tab === "tdd") return { message: copy.defaultTddMessage, context: copy.defaultTddContext };
-        return { message: copy.defaultMessage, context: copy.defaultContext };
-      }
-
       function applyTabUi(tab) {
         activeTab = tab;
         document.querySelectorAll(".mode-tab").forEach((btn) => {
@@ -407,13 +411,12 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
         });
         const label = document.getElementById("messageLabel");
         const runBtn = document.getElementById("run");
-        if (label) label.textContent = tab === "erro" ? copy.errorLabel : copy.messageLabel;
-        if (runBtn) runBtn.textContent = tab === "erro" ? copy.analyze : copy.coach;
+        if (label) label.textContent = copy.errorLabel;
+        if (runBtn) runBtn.textContent = copy.analyze;
         const msg = document.getElementById("message");
         const ctx = document.getElementById("context");
-        const defs = defaultsForTab(tab);
-        if (msg && !msg.dataset.dirty) msg.value = defs.message;
-        if (ctx && !ctx.dataset.dirty) ctx.value = defs.context;
+        if (msg && !msg.dataset.dirty) msg.value = copy.defaultMessage;
+        if (ctx && !ctx.dataset.dirty) ctx.value = copy.defaultContext;
         try { localStorage.setItem(TAB_KEY, tab); } catch (_) {}
       }
 
@@ -441,16 +444,15 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
         const note = document.getElementById("backendNote");
         if (note) {
           const provider = document.getElementById("providerBadge")?.textContent || "";
-          if (provider === "workers-ai") note.textContent = copy.geminiFallback;
-          else if (provider === "gemini") note.textContent = copy.geminiActive;
+          if (provider === "workers-ai") note.textContent = copy.workersAiHealthy;
+          else if (provider === "gemini") note.textContent = copy.geminiUpgrade;
           else note.textContent = copy.noBackend;
         }
 
         const msg = document.getElementById("message");
         const ctx = document.getElementById("context");
-        const defs = defaultsForTab(activeTab);
-        if (msg && !msg.dataset.dirty) msg.value = defs.message;
-        if (ctx && !ctx.dataset.dirty) ctx.value = defs.context;
+        if (msg && !msg.dataset.dirty) msg.value = copy.defaultMessage;
+        if (ctx && !ctx.dataset.dirty) ctx.value = copy.defaultContext;
 
         applyTabUi(activeTab);
 
@@ -489,34 +491,26 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
         region.dataset.lastJson = JSON.stringify(data);
 
         if (data.error) {
+          const detail = data.error === "ticket_required"
+            ? copy.ticketRequired
+            : (data.message || data.error);
           region.innerHTML =
             '<div class="error-box" role="alert"><strong>' +
             escapeHtml(copy.errorGeneric) +
             "</strong><p>" +
-            escapeHtml(data.error) +
+            escapeHtml(detail) +
             "</p></div>";
           return;
         }
 
         const raw = JSON.stringify(data, null, 2);
-        const isCoach = Array.isArray(data.invariants);
-        const title = isCoach ? copy.coachResultTitle : copy.resultTitle;
+        const title = copy.resultTitle;
+        const modeLabel = (data.mode || TAB_MODES[activeTab] || "sre").toUpperCase();
 
-        let fields = "";
-        if (isCoach) {
-          const inv = (data.invariants || []).map((i) => "<li>" + escapeHtml(i) + "</li>").join("");
-          fields =
-            '<div class="field"><dt>' + escapeHtml(copy.summary) + "</dt><dd>" + escapeHtml(data.summary || "—") + "</dd></div>" +
-            '<div class="field"><dt>' + escapeHtml(copy.invariants) + "</dt><dd><ul style=\\"margin:0;padding-left:1.1rem\\">" + (inv || "<li>—</li>") + "</ul></dd></div>" +
-            '<div class="field"><dt>' + escapeHtml(copy.suggestedNextStep) + "</dt><dd>" + escapeHtml(data.suggestedNextStep || "—") + "</dd></div>" +
-            '<div class="field"><dt>' + escapeHtml(copy.exampleSnippet) + "</dt><dd><pre style=\\"margin:0;font-family:IBM Plex Mono,monospace;font-size:0.85rem;white-space:pre-wrap\\">" +
-            escapeHtml(data.exampleSnippet || "—") + "</pre></dd></div>";
-        } else {
-          fields =
+        const fields =
             '<div class="field"><dt>' + escapeHtml(copy.summary) + "</dt><dd>" + escapeHtml(data.summary || "—") + "</dd></div>" +
             '<div class="field"><dt>' + escapeHtml(copy.likelyCause) + "</dt><dd>" + escapeHtml(data.likelyCause || "—") + "</dd></div>" +
             '<div class="field"><dt>' + escapeHtml(copy.suggestedFix) + "</dt><dd>" + escapeHtml(data.suggestedFix || "—") + "</dd></div>";
-        }
 
         region.innerHTML =
           '<article class="result">' +
@@ -526,6 +520,7 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
           "<h3>" + escapeHtml(copy.proofTitle) + "</h3>" +
           '<dl class="proof-grid">' +
           "<dt>" + escapeHtml(copy.provider) + "</dt><dd>" + escapeHtml(data.provider || "—") + "</dd>" +
+          "<dt>" + escapeHtml(copy.mode) + "</dt><dd>" + escapeHtml(modeLabel) + "</dd>" +
           "<dt>" + escapeHtml(copy.model) + "</dt><dd>" + escapeHtml(data.model || "—") + "</dd>" +
           "<dt>" + escapeHtml(copy.analyzedAt) + "</dt><dd><time datetime='" + escapeHtml(data.analyzedAt || "") + "'>" +
           escapeHtml(data.analyzedAt ? formatAnalyzedAt(data.analyzedAt) : "—") +
@@ -572,8 +567,6 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
       document.querySelectorAll(".mode-tab").forEach((btn) => {
         btn.addEventListener("click", () => {
           const tab = btn.dataset.tab || "erro";
-          document.getElementById("message").dataset.dirty = "";
-          document.getElementById("context").dataset.dirty = "";
           applyTabUi(tab);
           const region = document.getElementById("resultRegion");
           region.dataset.hasResult = "0";
@@ -594,32 +587,74 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
         const region = document.getElementById("resultRegion");
         btn.disabled = true;
         region.dataset.hasResult = "0";
-        const pending = activeTab === "erro" ? copy.analyzing : copy.coaching;
+        const pending = copy.analyzing;
         region.innerHTML = '<div class="placeholder">' + escapeHtml(pending) + "</div>";
         try {
+          if (!TURNSTILE_SITE_KEY) {
+            renderResult({ error: "Turnstile site key missing — demo gate not configured." });
+            return;
+          }
+          if (!turnstileToken) {
+            renderResult({ error: "ticket_required", message: copy.ticketRequired });
+            return;
+          }
+          const ticketRes = await fetch("/demo-ticket", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ turnstileToken, aud: "edge.analyze" }),
+          });
+          const ticketBody = await ticketRes.json();
+          if (!ticketRes.ok) {
+            renderResult({
+              error: ticketBody.error || ("ticket HTTP " + ticketRes.status),
+              message: ticketBody.message || ticketBody.error,
+            });
+            if (window.turnstile && turnstileWidgetId != null) window.turnstile.reset(turnstileWidgetId);
+            turnstileToken = "";
+            return;
+          }
+          const mode = TAB_MODES[activeTab] || "sre";
           const body = {
             message: document.getElementById("message").value,
             context: document.getElementById("context").value,
             locale,
+            mode,
           };
-          let url = "/analyze-error";
-          if (activeTab !== "erro") {
-            url = "/coach";
-            body.mode = TAB_MODES[activeTab];
-          }
-          const res = await fetch(url, {
+          const res = await fetch("/analyze-error", {
             method: "POST",
-            headers: { "content-type": "application/json" },
+            headers: {
+              "content-type": "application/json",
+              "x-demo-ticket": ticketBody.ticket,
+            },
             body: JSON.stringify(body),
           });
           const data = await res.json();
           renderResult(data);
+          if (window.turnstile && turnstileWidgetId != null) window.turnstile.reset(turnstileWidgetId);
+          turnstileToken = "";
         } catch (err) {
           renderResult({ error: String(err) });
         } finally {
           btn.disabled = false;
         }
       });
+
+      function mountTurnstile() {
+        if (!TURNSTILE_SITE_KEY || !window.turnstile) return;
+        const host = document.getElementById("turnstileHost");
+        if (!host || turnstileWidgetId != null) return;
+        turnstileWidgetId = window.turnstile.render(host, {
+          sitekey: TURNSTILE_SITE_KEY,
+          theme: "dark",
+          callback: (token) => { turnstileToken = token; },
+          "expired-callback": () => { turnstileToken = ""; },
+          "error-callback": () => { turnstileToken = ""; },
+        });
+      }
+      window.addEventListener("load", mountTurnstile);
+      const tsPoll = setInterval(() => {
+        if (window.turnstile) { mountTurnstile(); clearInterval(tsPoll); }
+      }, 200);
 
       // Prefer stored locale when URL has no explicit lang (first visit defaults to SSR locale).
       try {
@@ -649,9 +684,9 @@ export function playgroundHtml(provider: string, locale: Locale): Response {
   return new Response(html, {
     headers: {
       "content-type": "text/html; charset=utf-8",
-      "access-control-allow-origin": "*",
+      "access-control-allow-origin": "https://edge.galasse.dev",
       "access-control-allow-methods": "GET, POST, OPTIONS",
-      "access-control-allow-headers": "content-type",
+      "access-control-allow-headers": "content-type, x-demo-ticket",
     },
   });
 }

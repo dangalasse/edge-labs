@@ -23,7 +23,8 @@ export interface UiCopy {
   lead: string;
   activeBackend: string;
   geminiFallback: string;
-  geminiActive: string;
+  geminiUpgrade: string;
+  workersAiHealthy: string;
   noBackend: string;
   tabErro: string;
   tabSdd: string;
@@ -33,21 +34,16 @@ export interface UiCopy {
   errorLabel: string;
   contextLabel: string;
   analyze: string;
-  coach: string;
   analyzing: string;
-  coaching: string;
   placeholder: string;
   resultTitle: string;
-  coachResultTitle: string;
   summary: string;
   likelyCause: string;
   suggestedFix: string;
-  invariants: string;
-  suggestedNextStep: string;
-  exampleSnippet: string;
   proofTitle: string;
   provider: string;
   model: string;
+  mode: string;
   analyzedAt: string;
   showRaw: string;
   hideRaw: string;
@@ -60,46 +56,37 @@ export interface UiCopy {
   localeEn: string;
   defaultMessage: string;
   defaultContext: string;
-  defaultSddMessage: string;
-  defaultSddContext: string;
-  defaultDddMessage: string;
-  defaultDddContext: string;
-  defaultTddMessage: string;
-  defaultTddContext: string;
   errorGeneric: string;
+  ticketRequired: string;
 }
 
 const PT: UiCopy = {
-  title: "Edge Labs",
+  title: "Coach de erros no edge",
   lead:
-    "LLMOps ao vivo no Cloudflare Free Tier. Abas Erro · SDD · DDD · TDD — cada resposta inclui provider, model e analyzedAt para provar inferência real.",
+    "O mesmo log de erro, quatro ângulos: SRE · SDD · DDD · TDD. Inferência no Cloudflare Workers AI (Free Tier). Cada resposta inclui provider, model, mode e analyzedAt.",
   activeBackend: "Backend ativo",
-  geminiFallback: "Secret Gemini não configurado — usando Workers AI",
-  geminiActive: "Google Gemini (AI Studio)",
+  geminiFallback: "Workers AI (Free Tier)",
+  geminiUpgrade: "Gemini (upgrade opcional)",
+  workersAiHealthy: "Workers AI (Free Tier)",
   noBackend: "Nenhum backend LLM disponível",
-  tabErro: "Erro",
+  tabErro: "SRE",
   tabSdd: "SDD",
   tabDdd: "DDD",
   tabTdd: "TDD",
-  messageLabel: "Pergunta / cenário",
+  messageLabel: "Mensagem de erro",
   errorLabel: "Mensagem de erro",
   contextLabel: "Contexto (opcional)",
   analyze: "Analisar ao vivo",
-  coach: "Coach ao vivo",
   analyzing: "Chamando POST /analyze-error…",
-  coaching: "Chamando POST /coach…",
   placeholder: "O resultado aparece aqui…",
   resultTitle: "Análise",
-  coachResultTitle: "Coaching",
   summary: "Resumo",
   likelyCause: "Causa provável",
   suggestedFix: "Correção sugerida",
-  invariants: "Invariantes",
-  suggestedNextStep: "Próximo passo",
-  exampleSnippet: "Exemplo",
   proofTitle: "Prova de inferência",
   provider: "Provider",
   model: "Modelo",
+  mode: "Modo",
   analyzedAt: "Analisado em",
   showRaw: "Ver JSON bruto",
   hideRaw: "Ocultar JSON",
@@ -112,49 +99,37 @@ const PT: UiCopy = {
   localeEn: "ENG-US",
   defaultMessage: "ECONNREFUSED 127.0.0.1:5432",
   defaultContext: "Boot NestJS — smoke test para recrutador",
-  defaultSddMessage:
-    "Quero expor um endpoint de export CSV sem violar RBAC nem jobs assíncronos owner-scoped.",
-  defaultSddContext: "Contexto TOTE — Inventário + Governança",
-  defaultDddMessage:
-    "O módulo de importação precisa falar com inventário — devo usar ACL ou eventos?",
-  defaultDddContext: "NestJS module-per-feature, dois bounded contexts",
-  defaultTddMessage:
-    "Como escrever o primeiro teste para garantir que patrimony é único entre ativos activos?",
-  defaultTddContext: "Invariante de domínio — soft delete",
   errorGeneric: "Falha na análise",
+  ticketRequired: "Completa a verificação humana (Turnstile) e tenta de novo.",
 };
 
 const EN: UiCopy = {
-  title: "Edge Labs",
+  title: "Edge error coach",
   lead:
-    "Live LLMOps on Cloudflare Free Tier. Tabs Erro · SDD · DDD · TDD — every response includes provider, model, and analyzedAt to prove real inference.",
+    "The same error log, four angles: SRE · SDD · DDD · TDD. Inference on Cloudflare Workers AI (Free Tier). Every response includes provider, model, mode, and analyzedAt.",
   activeBackend: "Active backend",
-  geminiFallback: "Gemini secret not set — using Workers AI",
-  geminiActive: "Google Gemini (AI Studio)",
+  geminiFallback: "Workers AI (Free Tier)",
+  geminiUpgrade: "Gemini (optional upgrade)",
+  workersAiHealthy: "Workers AI (Free Tier)",
   noBackend: "No LLM backend available",
-  tabErro: "Erro",
+  tabErro: "SRE",
   tabSdd: "SDD",
   tabDdd: "DDD",
   tabTdd: "TDD",
-  messageLabel: "Question / scenario",
+  messageLabel: "Error message",
   errorLabel: "Error message",
   contextLabel: "Context (optional)",
   analyze: "Analyze live",
-  coach: "Coach live",
   analyzing: "Calling POST /analyze-error…",
-  coaching: "Calling POST /coach…",
   placeholder: "Response will appear here…",
   resultTitle: "Analysis",
-  coachResultTitle: "Coaching",
   summary: "Summary",
   likelyCause: "Likely cause",
   suggestedFix: "Suggested fix",
-  invariants: "Invariants",
-  suggestedNextStep: "Next step",
-  exampleSnippet: "Example",
   proofTitle: "Inference proof",
   provider: "Provider",
   model: "Model",
+  mode: "Mode",
   analyzedAt: "Analyzed at",
   showRaw: "Show raw JSON",
   hideRaw: "Hide JSON",
@@ -167,16 +142,8 @@ const EN: UiCopy = {
   localeEn: "ENG-US",
   defaultMessage: "ECONNREFUSED 127.0.0.1:5432",
   defaultContext: "NestJS boot — recruiter smoke test",
-  defaultSddMessage:
-    "I need a CSV export endpoint without breaking RBAC or owner-scoped async jobs.",
-  defaultSddContext: "TOTE context — Inventory + Governance",
-  defaultDddMessage:
-    "Import module must talk to inventory — ACL or domain events?",
-  defaultDddContext: "NestJS module-per-feature, two bounded contexts",
-  defaultTddMessage:
-    "How do I write the first test ensuring patrimony is unique among active assets?",
-  defaultTddContext: "Domain invariant — soft delete",
   errorGeneric: "Analysis failed",
+  ticketRequired: "Complete the human check (Turnstile), then try again.",
 };
 
 export function copyFor(locale: Locale): UiCopy {
