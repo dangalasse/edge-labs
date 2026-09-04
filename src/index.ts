@@ -64,14 +64,19 @@ export default {
     }
 
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders(request) });
+      return new Response(null, {
+        status: 204,
+        headers: { ...corsHeaders(request), ...defenseHeaders() },
+      });
     }
 
     if (request.method === "GET" && (url.pathname === "/" || url.pathname === "")) {
       const locale = normalizeLocale(
         url.searchParams.get("lang") ?? url.searchParams.get("locale"),
       );
-      return playgroundHtml(activeProvider(env), locale, env.TURNSTILE_SITE_KEY);
+      return withDefenseHeaders(
+        playgroundHtml(activeProvider(env), locale, env.TURNSTILE_SITE_KEY),
+      );
     }
 
     if (request.method === "GET" && url.pathname === "/health") {
@@ -393,11 +398,33 @@ function corsHeaders(request: Request): HeadersInit {
   };
 }
 
+function defenseHeaders(): Record<string, string> {
+  return {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "X-Frame-Options": "DENY",
+  };
+}
+
+function withDefenseHeaders(res: Response): Response {
+  const headers = new Headers(res.headers);
+  for (const [key, value] of Object.entries(defenseHeaders())) {
+    headers.set(key, value);
+  }
+  return new Response(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
+}
+
 function json(data: unknown, status = 200, request?: Request): Response {
   return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
+      ...defenseHeaders(),
       ...(request ? corsHeaders(request) : {}),
     },
   });
